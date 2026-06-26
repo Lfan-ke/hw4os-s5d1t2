@@ -1,0 +1,15 @@
+[package]
+name = "labctl"
+version = "0.1.0"
+edition = "2021"
+description = "AI4OSE OSLAB 实验引导 / 编译 / 判题 / 计分 runner"
+
+[[bin]]
+name = "labctl"
+path = "src/main.rs"
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+toml = "0.8"
+anyhow = "1"

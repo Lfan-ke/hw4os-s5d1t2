@@ -1,0 +1,55 @@
+id      = "01-hw-vlan"
+title   = "硬件管理 · VLAN Tag 的插入/剥离/过滤（软硬同构）"
+track   = "improper"
+require = 1               # 任一变体过即完成；多过计辅助分
+env     = "host"          # 本实验软件变体为纯逻辑，host 直接跑
+weight  = 1
+
+# ── 四条实现路径（同一 process() 逻辑的软/硬不同写法）──────────────
+[[variant]]
+id        = "sw-rust"
+axis      = "software"
+lang      = "rust"
+dir       = "sw/rust"
+build     = "cargo"
+
+[[variant]]
+id        = "sw-c"
+axis      = "software"
+lang      = "c"
+dir       = "sw/c"
+build     = "gcc-host"
+
+[[variant]]
+id        = "hw-v"
+axis      = "hardware"
+lang      = "verilog"
+dir       = "hw/v"
+build     = "iverilog"
+warn_gate = true          # 0 warning 才算过
+
+[[variant]]
+id        = "hw-bsv"
+axis      = "hardware"
+lang      = "bsv"
+dir       = "hw/bsv"
+build     = "bsc"
+warn_gate = true
+top       = "mkTbVlan"
+entry     = "VlanProc.bsv"
+
+# ── 统一判题口径（四变体对外行为一致）──────────────────────────────
+[judge]
+expect    = ["ACCESS_PASS", "TRUNK_PASS", "HYBRID_PASS", "ALL_PASS"]
+forbid    = ["FAIL", "panic", "ERROR"]
+timeout_s = 30
+
+# ── 渐进提示 ──────────────────────────────────────────────────────
+[[hint]]
+text = "先实现 Access 收包：包字里 has_tag=1 → 剥离(清 tag 位)；has_tag=0 → 插入 PVID(置 tag 位、vid=pvid)。"
+[[hint]]
+text = "Trunk 收包：无 tag 直接丢(置 drop 位)；有 tag 但 vid 不在 allow 位图里也丢；否则原样通过。"
+[[hint]]
+text = "Hybrid 收包同 Trunk；区别在发包(egress)：按 untag 位图决定该 vid 是否剥 tag。"
+[[hint]]
+text = "硬件路径：process 是纯组合逻辑(一拍)，把 in_pkt 映射到 out_pkt；软件路径：同一逻辑写成 if-else 函数即可。两者输出必须逐位一致。"

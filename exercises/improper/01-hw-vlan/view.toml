@@ -1,0 +1,48 @@
+# 01-hw-vlan 可视化声明 —— 驱动 labctl TUI 拓扑/数据流与 diagram 导出。
+# 教学准确为先；labctl diagram --check 可对照 yosys netlist JSON 校验真实结构。
+
+[[node]]
+id = "in"
+label = "in_pkt"
+[[node]]
+id = "parse"
+label = "parse tag/dir/vid"
+[[node]]
+id = "mode"
+label = "mode/pvid/allow/untag"
+[[node]]
+id = "op"
+label = "insert / strip / filter / keep"
+[[node]]
+id = "out"
+label = "out_pkt"
+
+[[edge]]
+from = "in"
+to   = "parse"
+[[edge]]
+from = "parse"
+to   = "op"
+[[edge]]
+from = "mode"
+to   = "op"
+[[edge]]
+from = "op"
+to   = "out"
+
+# 数据流场景（TUI 动画 / diagram 高亮）
+[[flow]]
+name = "access-insert"
+path = ["in", "parse", "op", "out"]
+note = "Access 收包 · 无 Tag → 插入 PVID"
+[[flow]]
+name = "trunk-filter-drop"
+path = ["in", "parse", "op", "out"]
+note = "Trunk 收包 · vid 不在 allow → 丢弃 (DROP)"
+[[flow]]
+name = "hybrid-egress-strip"
+path = ["in", "parse", "op", "out"]
+note = "Hybrid 发包 · untag[vid]=1 → 剥离 Tag"
+
+[wave]
+signals = ["clk", "mode", "in_pkt", "out_pkt", "drop"]

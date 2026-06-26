@@ -1,0 +1,11 @@
+[package]
+name = "vlan-sw-rust"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "vlan"
+path = "src/main.rs"
+
+[profile.dev]
+panic = "unwind"

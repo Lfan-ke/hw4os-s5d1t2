@@ -1,0 +1,11 @@
+# AI4OSE OSLAB —— 有序推进总清单（rustlings 式）
+# 仅放顺序 + track 分组；各实验细节见 exercises/<rel>/meta.toml
+
+[course]
+name = "AI4OSE OSLAB"
+isa  = "rv64gc"
+
+# 推进顺序（improper 不正经赛道 / proper 正经赛道）
+order = [
+  "improper/01-hw-vlan",
+]

@@ -216,3 +216,10 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# ── hw4os OSLAB 运行/构建产物 ──
+.labctl/
+**/*.vcd
+**/*.vvp
+**/obj_dir/
+**/sim_build/
