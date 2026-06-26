@@ -44,5 +44,27 @@ name = "hybrid-egress-strip"
 path = ["in", "parse", "op", "out"]
 note = "Hybrid 发包 · untag[vid]=1 → 剥离 Tag"
 
+# 接口（配置/端口）面板
+[[iface]]
+name = "mode"
+bits = "[1:0]"
+note = "0=Access 1=Trunk 2=Hybrid"
+[[iface]]
+name = "pvid"
+bits = "[5:0]"
+note = "Access 收包插入的默认 VID"
+[[iface]]
+name = "allow"
+bits = "[63:0]"
+note = "VID 允许位图（Trunk/Hybrid）"
+[[iface]]
+name = "untag"
+bits = "[63:0]"
+note = "Hybrid 发包剥 Tag 的 VID 位图"
+[[iface]]
+name = "in_pkt/out_pkt"
+bits = "[31:0]"
+note = "VALID|HAS_TAG|DROP|DIR|VID[21:16]|PAYLOAD[15:0]"
+
 [wave]
 signals = ["clk", "mode", "in_pkt", "out_pkt", "drop"]

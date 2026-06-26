@@ -10,15 +10,21 @@ mod judge;
 mod manifest;
 mod score;
 mod toolchain;
+mod tui;
 mod variant;
+mod vcd;
+mod view;
 
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use std::path::{Path, PathBuf};
+use std::process::Command;
+use std::time::{Duration, SystemTime};
 
 use manifest::{Course, Exercise};
 use score::{score_exercise, Board};
 use variant::{run_variant, Status};
+use view::View;
 
 #[derive(Parser)]
 #[command(name = "labctl", version, about = "AI4OSE OSLAB 实验引导 / 判题 runner")]
@@ -57,6 +63,18 @@ enum Cmd {
     },
     /// 显示下一个实验
     Next,
+    /// 渲染实验的 TUI 伴侣面板（拓扑/数据流/接口，静态）
+    View { id: Option<String> },
+    /// 监视文件，保存即自动重跑并刷新伴侣面板
+    Watch { id: Option<String> },
+    /// 看波形：终端紧凑渲染，或 --gui 用 gtkwave
+    Wave {
+        id: Option<String>,
+        #[arg(long)]
+        gui: bool,
+    },
+    /// 导出 Mermaid 拓扑/数据流图（可入 README/浏览器预览）
+    Diagram { id: Option<String> },
 }
 
 fn find_root(explicit: Option<PathBuf>) -> Result<PathBuf> {
@@ -109,6 +127,10 @@ fn main() -> Result<()> {
         Cmd::Hint { id } => cmd_hint(&course, &id),
         Cmd::Score { solutions } => cmd_score(&course, &root, solutions),
         Cmd::Next => cmd_next(&course),
+        Cmd::View { id } => cmd_view(&course, &root, &id),
+        Cmd::Watch { id } => cmd_watch(&course, &root, &id),
+        Cmd::Wave { id, gui } => cmd_wave(&course, &root, &id, gui),
+        Cmd::Diagram { id } => cmd_diagram(&course, &root, &id),
     }
 }
 
@@ -234,6 +256,139 @@ fn cmd_next(course: &Course) -> Result<()> {
     match course.exercises.first() {
         Some(ex) => println!("下一个实验：{}  — {}", ex.rel, ex.title),
         None => println!("课程中没有任何实验。"),
+    }
+    Ok(())
+}
+
+fn cmd_view(course: &Course, root: &Path, id: &Option<String>) -> Result<()> {
+    let ex = resolve(course, id)?;
+    let dir = base_dir(root, false).join(&ex.rel);
+    let view = View::load(&dir)?;
+    print!("{}", tui::render(ex, view.as_ref(), None));
+    Ok(())
+}
+
+/// 收集实验目录下源文件的最新修改时间（跳过构建产物目录）。
+fn latest_mtime(dir: &Path) -> SystemTime {
+    fn walk(dir: &Path, newest: &mut SystemTime) {
+        let skip = ["sim_build", "target", ".labctl", ".git", "build"];
+        if let Ok(rd) = std::fs::read_dir(dir) {
+            for e in rd.flatten() {
+                let p = e.path();
+                let name = e.file_name();
+                let name = name.to_string_lossy();
+                if p.is_dir() {
+                    if !skip.iter().any(|s| *s == name) {
+                        walk(&p, newest);
+                    }
+                } else if let Ok(m) = e.metadata().and_then(|m| m.modified()) {
+                    if m > *newest {
+                        *newest = m;
+                    }
+                }
+            }
+        }
+    }
+    let mut newest = SystemTime::UNIX_EPOCH;
+    walk(dir, &mut newest);
+    newest
+}
+
+fn cmd_watch(course: &Course, root: &Path, id: &Option<String>) -> Result<()> {
+    let ex = resolve(course, id)?;
+    let dir = base_dir(root, false).join(&ex.rel);
+    let view = View::load(&dir)?;
+    let mut last = SystemTime::UNIX_EPOCH;
+    loop {
+        let now = latest_mtime(&dir);
+        if now != last {
+            last = now;
+            let s = run_one(ex, root, false);
+            print!("\x1b[2J\x1b[H"); // 清屏 + 光标归位
+            print!("{}", tui::render(ex, view.as_ref(), Some(&s.results)));
+            let mark = if s.required_done { "✓ 完成" } else { "✗ 未达成" };
+            println!(
+                "  必修 {}（通过 {}/{}，require={}）  辅助分 +{}",
+                mark, s.passed, s.results.len(), ex.require, s.bonus
+            );
+            println!("  〔保存任意源文件自动重跑 · Ctrl-C 退出〕");
+            use std::io::Write;
+            std::io::stdout().flush().ok();
+        }
+        std::thread::sleep(Duration::from_millis(500));
+    }
+}
+
+fn find_vcd(dir: &Path) -> Option<PathBuf> {
+    std::fs::read_dir(dir).ok()?.flatten().find_map(|e| {
+        let p = e.path();
+        (p.extension().and_then(|x| x.to_str()) == Some("vcd")).then_some(p)
+    })
+}
+
+fn cmd_wave(course: &Course, root: &Path, id: &Option<String>, gui: bool) -> Result<()> {
+    let ex = resolve(course, id)?;
+    // 优先 iverilog 硬件变体（tb 的 $dumpfile 自动产 vcd）
+    let hw = ex
+        .variants
+        .iter()
+        .find(|v| v.axis == "hardware" && v.build == "iverilog")
+        .or_else(|| ex.variants.iter().find(|v| v.axis == "hardware"))
+        .context("本实验无硬件变体，无法看波形")?;
+
+    let base = base_dir(root, false).join(&ex.rel);
+    let broot = build_root(root).join("ex");
+    let _ = run_variant(ex, &base, hw, &broot); // 跑一次产 vcd
+    let bdir = broot.join(ex.rel.replace('/', "_")).join(&hw.id);
+    let vcd_path = find_vcd(&bdir).context("未找到 .vcd（确认 testbench 有 $dumpfile）")?;
+
+    if gui {
+        if !toolchain::which("gtkwave") {
+            anyhow::bail!("未安装 gtkwave");
+        }
+        Command::new("gtkwave")
+            .arg(&vcd_path)
+            .spawn()
+            .context("启动 gtkwave 失败")?;
+        println!("已用 gtkwave 打开 {}", vcd_path.display());
+        return Ok(());
+    }
+
+    let parsed = vcd::parse(&vcd_path)?;
+    let signals = match View::load(&base)? {
+        Some(v) if !v.wave.signals.is_empty() => v.wave.signals,
+        _ => parsed.vars.iter().map(|(_, n, _)| n.clone()).collect(),
+    };
+    println!("波形（{}，1-bit:▁▔，多bit:依次取值）", hw.id);
+    print!("{}", vcd::render(&parsed, &signals));
+    println!("（精确波形：labctl wave --gui  或  make -C {}/hw/v wave）", ex.rel);
+    Ok(())
+}
+
+fn mermaid_id(s: &str) -> String {
+    s.chars()
+        .map(|c| if c.is_alphanumeric() { c } else { '_' })
+        .collect()
+}
+
+fn cmd_diagram(course: &Course, root: &Path, id: &Option<String>) -> Result<()> {
+    let ex = resolve(course, id)?;
+    let dir = base_dir(root, false).join(&ex.rel);
+    let view = View::load(&dir)?.context("本实验无 view.toml")?;
+    println!("```mermaid");
+    println!("flowchart LR");
+    for n in &view.nodes {
+        println!("  {}[\"{}\"]", mermaid_id(&n.id), n.label);
+    }
+    for e in &view.edges {
+        println!("  {} --> {}", mermaid_id(&e.from), mermaid_id(&e.to));
+    }
+    println!("```");
+    if !view.flows.is_empty() {
+        println!("\n数据流场景：");
+        for f in &view.flows {
+            println!("- **{}**: {}", f.name, f.note);
+        }
     }
     Ok(())
 }
