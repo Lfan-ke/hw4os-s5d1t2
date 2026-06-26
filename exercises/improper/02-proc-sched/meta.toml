@@ -1,0 +1,32 @@
+id      = "02-proc-sched"
+title   = "进程管理 · 软件模拟进程调度（FIFO → 约束 → 优先级）"
+track   = "improper"
+require = 1               # C/Rust 任一过即过
+env     = "host"          # 纯逻辑，host 直接跑
+weight  = 1
+
+[[variant]]
+id    = "sw-rust"
+axis  = "software"
+lang  = "rust"
+dir   = "sw/rust"
+build = "cargo"
+
+[[variant]]
+id    = "sw-c"
+axis  = "software"
+lang  = "c"
+dir   = "sw/c"
+build = "gcc-host"
+
+[judge]
+expect    = ["FIFO_PASS", "SCHED_PASS", "PRIO_PASS", "ALL_PASS"]
+forbid    = ["FAIL", "panic", "ERROR"]
+timeout_s = 30
+
+[[hint]]
+text = "先做 run_fifo：最朴素，把就绪队列里的 pid 按到达顺序原样返回。"
+[[hint]]
+text = "run_constrained：先 filter 掉 tag==GHOST 的进程；再保证 TAG_B 的 pid 排在 TAG_A 之后（若 B 在前就把它挪到 A 后）。判题只看三条不变量，不要求精确序。"
+[[hint]]
+text = "run_priority：按优先级降序输出，平级保持到达顺序——对下标做稳定排序即可。"

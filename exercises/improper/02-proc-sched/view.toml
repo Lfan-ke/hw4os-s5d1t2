@@ -1,0 +1,39 @@
+# 02-proc-sched 可视化声明（纯软件实验，无波形）。
+[[node]]
+id = "ready"
+label = "就绪结构 (Vec/优先队列)"
+[[node]]
+id = "pick"
+label = "pick_next 选择策略"
+[[node]]
+id = "run"
+label = "执行序 (PCB.pid)"
+
+[[edge]]
+from = "ready"
+to   = "pick"
+[[edge]]
+from = "pick"
+to   = "run"
+
+[[flow]]
+name = "fifo"
+path = ["ready", "pick", "run"]
+note = "FIFO：按到达顺序出队"
+[[flow]]
+name = "constrained"
+path = ["ready", "pick", "run"]
+note = "约束：GHOST 不上 · B 恒在 A 后 · 其余任意"
+[[flow]]
+name = "priority"
+path = ["ready", "pick", "run"]
+note = "优先级：高优先先出队，平级 FIFO 兜底"
+
+[[iface]]
+name = "tag"
+bits = "u32"
+note = "0=普通 1=GHOST 2=A 3=B"
+[[iface]]
+name = "prio"
+bits = "u32"
+note = "数值越大优先级越高"

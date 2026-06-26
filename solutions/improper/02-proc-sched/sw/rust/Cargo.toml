@@ -1,0 +1,8 @@
+[package]
+name = "sched-sw-rust"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "sched"
+path = "src/main.rs"
