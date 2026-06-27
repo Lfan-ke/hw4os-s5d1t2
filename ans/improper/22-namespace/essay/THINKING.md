@@ -32,7 +32,7 @@
 
 所以容器「轻」是因为它根本没虚拟硬件、没装第二个内核——它就是一组**被 namespace
 换了视图、被 cgroup 限了量的普通进程**。代价是隔离不如 VM 硬。现实里常叠加使用：
-Kata Containers / Firecrawl microVM 就是「给容器套一层轻量 VM」来补隔离强度。
+Kata Containers / Firecracker microVM 就是「给容器套一层轻量 VM」来补隔离强度。
 
 ## 3. OCI / Docker：标准与工具分别是什么？
 

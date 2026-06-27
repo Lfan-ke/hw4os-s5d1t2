@@ -94,8 +94,8 @@ labctl hint improper/21-tcp    # 卡住看提示
   （如握手第三步的 ACK 之后、收到纯 ACK 之后）。
 - **非法转移一律拒绝**：落到状态机末尾的 catch-all → `last_accepted=false`、`rejected++`、不改状态。
   `STATE_PASS` 就是在验证「CLOSED 收数据该拒」「ESTABLISHED 收 SYN 该拒」等。
-- **`STATE_PASS` 的 (a)~(d) 不依赖你的 TODO**（拒绝逻辑已给定），所以哪怕握手没填，它也能单独过——
-  这正好帮你区分「是状态机框架坏了，还是握手没写」。
+- **`STATE_PASS` 的拒绝逻辑 (a)~(d) 已给定**，但 `STATE_PASS` 整体还含状态序校验 (e)（主动方完整生命周期），
+  需先填好握手 TODO 才会整体点亮——若 `STATE_PASS` 没出，先排查握手 TODO，再看状态机框架。
 
 ## 5. 完成标准 (DoD)
 

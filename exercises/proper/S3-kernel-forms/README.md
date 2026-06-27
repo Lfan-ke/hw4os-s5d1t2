@@ -38,7 +38,7 @@ labctl run proper/S3-kernel-forms
 make -C kernel run     # 手动跑（OpenSBI banner 后见内核输出）
 ```
 
-判据：输出含 `UNIKERNEL_PASS` / `RTOS_PASS` / `EXOKERNEL_PASS` / `ALL_PASS`，不出现 `FAIL` / `UNEXPECTED`。未补完时只出前两者，无 `ALL_PASS`。
+判据：输出含 `UNIKERNEL_PASS` / `RTOS_PASS` / `EXOKERNEL_PASS` / `ALL_PASS`，不出现 `FAIL` / `UNEXPECTED`。未补完时（RTOS 未实现）只出 `UNIKERNEL_PASS` 与 `EXOKERNEL_PASS`（缺中间的 `RTOS_PASS`），无 `ALL_PASS`。
 
 ## 2. 完成标准 (DoD)
 

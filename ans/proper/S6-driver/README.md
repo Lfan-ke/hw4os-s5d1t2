@@ -41,4 +41,4 @@ OpenSBI banner 之后应见：`UART_PASS` / `DT_PASS` / `PROBE_PASS` / `ALL_PASS
 ## 4. 引申
 
 - 配波特率（LCR.DLAB→DLL/DLM）、开 FIFO（FCR）、中断驱动（IER + PLIC）。
-- S6b：virtio-blk 块设备 dd 刷写/读取；S6c：更完整的 fdt + 平台总线。
+- S7：RAM 盘（接口同 virtio-blk MMIO）块设备读写；S6c：更完整的 fdt + 平台总线。

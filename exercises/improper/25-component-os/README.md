@@ -105,6 +105,6 @@ labctl hint improper/25-component-os    # 卡住看提示
 ## 6. 思考题（`essay/THINKING.md` 作答即可通过）
 
 1. 「内核组件化 + cargo features 组装」相比「从头手搓一个内核」，省了什么、换来了什么？为什么同一套组件能拼出 unikernel / 宏内核 / hypervisor 三种形态？
-2. 组件化是**方法论**，forms（F1~F5 那些架构形态）是**结果**。请说明「unikernel 只是一种组装结果」：对照 forms-F4，本课的 `UNI = {最小组件 + 无 syscall 边界}` 与 F4 的「同地址空间、零陷入」是不是一回事？
+2. 组件化是**方法论**，forms（F1~F6 那些架构形态）是**结果**。请说明「unikernel 只是一种组装结果」：对照 forms-F4，本课的 `UNI = {最小组件 + 无 syscall 边界}` 与 F4 的「同地址空间、零陷入」是不是一回事？
 3. 「可热替换」为什么重要？拿 arceos 的 `axalloc`（换 bump / slab / buddy）、`axtask`（换 fifo / cfs 调度）举例：组件契约（接口 + 不变量）不变时，换实现为何不影响其余系统？这和本课 `SWAP`（换 freelist+rr）是同一回事吗？
 4. 把本课模型对到真实工程：`make_allocator(kind)` ↔ ?（cargo feature / Kconfig 选实现）、`build_kernel(cfg)` ↔ ?（按 feature 组装 crate 依赖图）、`SWAP` ↔ ?（替换一个 mod 实现）。再说说 StarryOS（在 arceos 组件上拼出的宏内核 / Linux 兼容层）是怎样「复用同一套组件、换个拼法」的。

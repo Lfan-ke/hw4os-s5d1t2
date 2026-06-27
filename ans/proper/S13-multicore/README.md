@@ -12,7 +12,7 @@
 
 三件事：
 
-1. **唤醒**：hart0 调 `sbi_hart_start(HART1_ID, hart1_entry, 0)`。SBI 让 hart1 以
+1. **唤醒**：引导核调 `sbi_hart_start(target, hart1_entry, 0)`——`target` 是一个确定不同于引导核的 hart（由给定代码从引导 hartid 算出；`-smp` 下引导核可能非 hart0，故不写死）。SBI 让该 hart 以
    **S 态、satp=0** 跳到 `hart1_entry`，入口处 `a0=hartid`、`a1=opaque`。
 2. **各自的栈**：hart1 **不能**用 hart0 的 `boot_stack`（会互踩）。`hart1.S` 已为它备好独立
    `hart1_stack`，入口先 `la sp, hart1_stack_top` 再进 C。
@@ -43,7 +43,7 @@
 
 ```
 A) kmain 里「唤醒 hart1」：
-   long r = sbi_hart_start(HART1_ID, (uint64_t)hart1_entry, 0);   // EID 0x48534D, fid 0
+   long r = sbi_hart_start(target, (uint64_t)hart1_entry, 0);    // target 已由给定代码算出；EID 0x48534D, fid 0
 
 B) hart1_main 里「hart1 入口逻辑」：
    g_mbox.hart_id = hartid; smp_fence(); g_mbox.online = 1;       // 报上线

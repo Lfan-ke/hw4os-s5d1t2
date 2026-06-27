@@ -50,4 +50,4 @@ make -C kernel run     # 手动跑（OpenSBI banner 后见内核输出）
 ## 4. 引申
 
 - 真正的串口还要配波特率（写 LCR.DLAB=1 后写 DLL/DLM 分频）、开 FIFO（FCR）、用中断而非轮询（IER + plic）。
-- 设备树还携带 `interrupts`、`clocks`、子节点；S6b 会用 virtio-blk 做块设备 dd 刷写/读取。
+- 设备树还携带 `interrupts`、`clocks`、子节点；S7 会用 RAM 盘（接口同 virtio-blk MMIO）做块设备读写。
