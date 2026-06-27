@@ -1,0 +1,32 @@
+id      = "S6-driver"
+title   = "正经·S6 · 裸机 MMIO 驱动 + 设备树：从寄存器到平台总线"
+track   = "proper"
+require = 1
+env     = "qemu-virt"
+weight  = 1
+
+[[variant]]
+id    = "kernel-c"
+axis  = "software"
+lang  = "c"
+dir   = "kernel"
+build = "qemu-virt"
+
+[[variant]]
+id    = "essay"
+axis  = "writing"
+lang  = "text"
+dir   = "essay"
+build = "essay"
+
+[judge]
+expect    = ["UART_PASS", "DT_PASS", "PROBE_PASS", "ALL_PASS"]
+forbid    = ["FAIL", "panic", "UNEXPECTED"]
+timeout_s = 15
+
+[[hint]]
+text = "NS16550 在 qemu virt 上位于 0x10000000，寄存器字节对齐：偏移 0=RBR/THR、3=LCR、4=MCR、5=LSR。寄存器就是 volatile 内存读写。"
+[[hint]]
+text = "发字符：先轮询 LSR.THRE(0x20) 直到为 1，再写 THR；收字符：轮询 LSR.DR(0x01)。自测可用 MCR.LOOP(0x10) 回环：写进去的字节会回到 RBR。"
+[[hint]]
+text = "dtb 全部多字节整数是大端，逐字节读规避对齐。token 流：1=BEGIN_NODE(后跟名字)、3=PROP(len,nameoff,值)、2=END_NODE、9=END。compatible 匹配就是 strcmp==0。"

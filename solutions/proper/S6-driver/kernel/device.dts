@@ -1,0 +1,16 @@
+/dts-v1/;
+
+/ {
+    #address-cells = <2>;
+    #size-cells = <2>;
+    model = "oslab-s6-virt";
+    compatible = "oslab,s6-virt";
+
+    /* 一个 NS16550 串口节点：reg 给出 MMIO 基址(0x10000000)与长度(0x100)。
+     * #address-cells=2 #size-cells=2 ⇒ reg = <addr_hi addr_lo size_hi size_lo>。 */
+    uart@10000000 {
+        compatible = "ns16550a";
+        reg = <0x0 0x10000000 0x0 0x100>;
+        clock-frequency = <0x384000>;
+    };
+};

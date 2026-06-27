@@ -1,6 +1,4 @@
-# AI4OSE OSLAB —— 有序推进总清单（rustlings 式）
-# 仅放顺序 + track 分组；各实验细节见 exercises/<rel>/meta.toml
-
+# AI4OSE OSLAB
 [course]
 name = "AI4OSE OSLAB"
 isa  = "rv64gc"
@@ -26,4 +24,10 @@ order = [
   "improper/18-syscall",
   "proper/S1-sbi-boot",
   "proper/S2-trap-timer",
+  "proper/S3-kernel-forms",
+  "proper/S4-async",
+  "proper/S5-scheduler",
+  "proper/S6-driver",
+  "proper/S7-filesystem",
+  "proper/S8-syscall-process",
 ]
