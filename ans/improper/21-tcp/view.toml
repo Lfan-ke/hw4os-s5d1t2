@@ -1,0 +1,53 @@
+# 21-tcp 可视化声明 —— 两台 TCP 状态机 + mock 通道传报文（SYN/ACK/FIN, seq/ack/len）。
+# 软件是几个 match 分支，逻辑就是 RFC 793 的状态转移图。
+
+[[node]]
+id = "a"
+label = "端点 A（客户端：主动打开/主动关闭）"
+[[node]]
+id = "chan"
+label = "mock 通道（传 Seg{flags,seq,ack,len}）"
+[[node]]
+id = "b"
+label = "端点 B（服务器：LISTEN/被动关闭）"
+
+[[edge]]
+from = "a"
+to   = "chan"
+[[edge]]
+from = "chan"
+to   = "b"
+[[edge]]
+from = "b"
+to   = "chan"
+
+# 数据流场景（TUI 动画 / diagram 高亮）
+[[flow]]
+name = "handshake"
+path = ["a", "chan", "b", "chan", "a", "chan", "b"]
+note = "三次握手：A→SYN→B；B→SYN|ACK→A；A→ACK→B。两端 CLOSED→…→ESTABLISHED"
+[[flow]]
+name = "data"
+path = ["a", "chan", "b", "chan", "a"]
+note = "数据：A 发 N 字节(seq=snd_nxt)；B 回 ack=seq+len；A 收纯 ACK 不再回"
+[[flow]]
+name = "teardown"
+path = ["a", "chan", "b", "chan", "a", "chan", "b", "chan", "a"]
+note = "四次挥手：A→FIN；B→ACK；B→FIN；A→ACK→TIME_WAIT→(2MSL)→CLOSED"
+
+# 状态机各态（面板）
+[[iface]]
+name = "握手态"
+bits = "CLOSED→SYN_SENT→ESTABLISHED"
+note = "客户端主动方路径；服务器走 LISTEN→SYN_RCVD→ESTABLISHED"
+[[iface]]
+name = "挥手态"
+bits = "ESTABLISHED→FIN_WAIT_1→FIN_WAIT_2→TIME_WAIT→CLOSED"
+note = "主动关闭方；被动方走 CLOSE_WAIT→LAST_ACK→CLOSED"
+[[iface]]
+name = "seq/ack"
+bits = "SYN/FIN 各占 1，数据占 len，纯 ACK 占 0"
+note = "收方 ack = 收到段 seq + len（= 期望的下一个字节）"
+
+[wave]
+signals = ["state", "flags", "seq", "ack", "len"]

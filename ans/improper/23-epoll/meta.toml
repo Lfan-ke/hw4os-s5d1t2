@@ -1,0 +1,44 @@
+id      = "23-epoll"
+title   = "I/O 多路复用 · select 全表扫描 vs epoll 就绪链表与边沿触发（心智模型）"
+track   = "improper"
+require = 1               # 任一变体把全部 *_PASS 跑齐即完成；多过计辅助分
+env     = "host"          # 纯软件建模（fd 就绪态数组），host 直接跑
+weight  = 1
+
+# ── 软件双变体（同一套 select/epoll 心智模型的 Rust/C 写法）+ 思考题 ──
+[[variant]]
+id    = "sw-rust"
+axis  = "software"
+lang  = "rust"
+dir   = "sw/rust"
+build = "cargo"
+
+[[variant]]
+id    = "sw-c"
+axis  = "software"
+lang  = "c"
+dir   = "sw/c"
+build = "gcc-host"
+
+[[variant]]
+id    = "essay"
+axis  = "essay"
+lang  = "md"
+dir   = "essay"
+build = "essay"
+
+# ── 统一判题口径 ────────────────────────────────────────────────
+[judge]
+expect    = ["SELECT_PASS", "EPOLL_PASS", "EDGE_PASS", "SCALE_PASS", "ALL_PASS"]
+forbid    = ["FAIL", "panic", "ERROR"]
+timeout_s = 30
+
+# ── 渐进提示 ──────────────────────────────────────────────────────
+[[hint]]
+text = "select 已给好（全表扫描基线，SELECT_PASS 自动过）。你只填两处：epoll_wait 收集 + edge_ready 边沿判定。占位时 epoll/edge/scale 三段不过、不会崩。"
+[[hint]]
+text = "epoll_wait 收集：遍历就绪链表里的 fd，只把『已注册兴趣(interest 非 None) 且 当前 fds[fd].readable』的收进 out。未注册的即便可读也不收——这正是 EPOLL_PASS 里 fd6 不被返回的原因。"
+[[hint]]
+text = "edge_ready(prev,cur)=『不可读→可读』的上升沿，即 !prev && cur。true→true 不算沿(ET 静默)，false→true 才算沿(ET 通知一次)。LT 的『持续通知』由 wait 里的重新武装负责，不归你管。"
+[[hint]]
+text = "SCALE：1000 个 fd 全注册、只有 1 个就绪。epoll_wait 只遍历就绪链表(长度=1，scan+=1)，select 扫全表(scan=1000)。两个计数器一对比就是 O(ready) vs O(n)。"

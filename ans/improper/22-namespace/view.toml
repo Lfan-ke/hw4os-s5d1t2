@@ -1,0 +1,83 @@
+# 22-namespace 可视化声明 —— 一颗内核养出 N 个「小天地」。
+# 隔离不是魔法：namespace 给每个容器换一套视图，cgroup 给它记一本配额账。
+
+[[node]]
+id = "kernel"
+label = "宿主内核（唯一，被所有容器共享）"
+[[node]]
+id = "pidns"
+label = "PID namespace（globals 列表：[0]=init→局部 1，其后 2,3,…）"
+[[node]]
+id = "mntns"
+label = "Mount namespace（每容器一张挂载表 paths）"
+[[node]]
+id = "cgroup"
+label = "cgroup（内存配额账：used / quota）"
+[[node]]
+id = "contA"
+label = "容器 A（自己的视图 + 配额）"
+[[node]]
+id = "contB"
+label = "容器 B（自己的视图 + 配额）"
+
+# 同一颗内核，分发出各容器互不相同的视图
+[[edge]]
+from = "kernel"
+to   = "pidns"
+[[edge]]
+from = "kernel"
+to   = "mntns"
+[[edge]]
+from = "kernel"
+to   = "cgroup"
+[[edge]]
+from = "pidns"
+to   = "contA"
+[[edge]]
+from = "mntns"
+to   = "contA"
+[[edge]]
+from = "cgroup"
+to   = "contA"
+[[edge]]
+from = "pidns"
+to   = "contB"
+[[edge]]
+from = "mntns"
+to   = "contB"
+[[edge]]
+from = "cgroup"
+to   = "contB"
+
+[[flow]]
+name = "pid-translate"
+path = ["kernel", "pidns", "contA"]
+note = "全局 pid 7777 → 容器 A 看到 3 号、容器 B 看到 2 号；init 恒为局部 1"
+[[flow]]
+name = "mount-isolate"
+path = ["mntns", "contA", "contB"]
+note = "A 挂的 /data-a 在 A 表里有(下标 2)、在 B 表里查不到(-1)，互不可见"
+[[flow]]
+name = "cgroup-charge"
+path = ["contA", "cgroup"]
+note = "申请 used+request<=quota 才批准；超额被拒且用量不变（用满 100 即止）"
+
+[[iface]]
+name = "ns_local_pid"
+bits = "globals,global→local"
+note = "容器内视角：全局 pid 找到下标 +1 = 局部 pid；找不到=不在本 ns"
+[[iface]]
+name = "ns_global_pid"
+bits = "globals,local→global"
+note = "逆映射：局部 pid（1 起）→ globals[local-1]；越界=None"
+[[iface]]
+name = "mount_lookup"
+bits = "paths,target→idx"
+note = "本容器挂载表里查路径下标；-1 = 未挂载 = 不可见"
+[[iface]]
+name = "cgroup_charge"
+bits = "used,quota,request→(used',ok)"
+note = "放得下批准+计费；放不下拒绝且用量不动"
+
+[wave]
+signals = ["global_pid", "ns", "local_pid", "used", "ok"]

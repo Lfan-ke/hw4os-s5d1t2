@@ -1,0 +1,32 @@
+id      = "S7b-vfs"
+title   = "正经·S7b · VFS：内核虚拟文件系统层（vtable 多态 + 挂载表）"
+track   = "proper"
+require = 1
+env     = "qemu-virt"
+weight  = 1
+
+[[variant]]
+id    = "kernel-c"
+axis  = "software"
+lang  = "c"
+dir   = "kernel"
+build = "qemu-virt"
+
+[[variant]]
+id    = "essay"
+axis  = "essay"
+lang  = "text"
+dir   = "essay"
+build = "essay"
+
+[judge]
+expect    = ["VFS_REG_PASS", "DISPATCH_PASS", "CROSSMNT_PASS", "DEVFS_PASS", "ALL_PASS"]
+forbid    = ["FAIL", "panic", "UNEXPECTED"]
+timeout_s = 20
+
+[[hint]]
+text = "分发 A：vfs_open 里已选好挂载点 m 并造好 root vnode，缺的就一行——return m->ops->lookup(&root, rel, out)；vfs_read 同理 return vn->ops->read(vn, buf, max)。这就是 vtable 多态：同一句 ->ops->，落到 ramfs 还是 devfs 由 vnode 自带的 ops 决定。"
+[[hint]]
+text = "路径解析 B：遍历挂载表，path_is_prefix(path, mp) 为真的才是候选；在候选里挑挂载点字符串最长的（'/dev' 长于 '/' 故胜出）。选中后 rel = path + kstrlen(挂载点)，再把开头的 '/' 都吃掉。"
+[[hint]]
+text = "占位版：分发返回 -1、mount_resolve 返回 0，则 vfs_open 全失败——只会看到各 *_MISS，不出 PASS、也不崩。点亮两处填空后四项依次 PASS、最后 ALL_PASS。"

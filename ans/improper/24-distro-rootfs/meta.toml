@@ -1,0 +1,45 @@
+id      = "24-distro-rootfs"
+title   = "发行版与根文件系统 · 从光秃秃的内核到能进 shell 的 rootfs"
+track   = "improper"
+require = 1               # 任一变体过即完成；多过计辅助分
+env     = "host"          # 纯软件心智模型，host 直接跑
+weight  = 1
+
+# ── 实现路径（同一棵「内存文件树」上的 rootfs 心智模型）+ 思考题 ──────
+[[variant]]
+id    = "sw-rust"
+axis  = "software"
+lang  = "rust"
+dir   = "sw/rust"
+build = "cargo"
+
+[[variant]]
+id    = "sw-c"
+axis  = "software"
+lang  = "c"
+dir   = "sw/c"
+build = "gcc-host"
+
+[[variant]]
+id    = "essay"
+axis  = "essay"
+lang  = "md"
+dir   = "essay"
+build = "essay"
+
+# ── 统一判题口径 ───────────────────────────────────────────────────
+# 四段各打印一个 *_PASS，全过再打印 ALL_PASS；任何 *_FAIL/panic 即未过。
+[judge]
+expect    = ["FHS_PASS", "BUSYBOX_PASS", "INIT_PASS", "INITRAMFS_PASS", "ALL_PASS"]
+forbid    = ["FAIL", "panic", "ERROR"]
+timeout_s = 60
+
+# ── 渐进提示 ──────────────────────────────────────────────────────
+[[hint]]
+text = "(a) FHS：先把 /bin /etc /dev /proc /sys /lib 六个目录建好，再放 /bin/busybox(文件) 和 ls/cat/echo/mount(指向 /bin/busybox 的符号链接)；/etc/inittab 给 init 读。"
+[[hint]]
+text = "(b) busybox：cmd = argv[0] 去掉路径后的 basename（rsplit('/') / strrchr）。match cmd：echo=空格连接、ls=排序后换行连接、cat=换行连接、mount='mounted '+空格连接、其它=含 'not found' 的提示。关键是同一函数仅凭 argv[0] 就变出不同命令。"
+[[hint]]
+text = "(c) init：宣告自己是 PID 1 → 逐行读 /etc/inittab(::action:command) → sysinit 动作执行挂载(往树里塞 /proc /sys 的虚拟条目) → askfirst/respawn 动作 spawn shell。shell 必须排在挂载之后。"
+[[hint]]
+text = "(d) cpio 解包：头 13 字节 = magic[4]'0707' + type(1) + namelen(LE32) + bodylen(LE32)；随后是 name 再是 body。校验 magic→读 name→若 == 'TRAILER!!!' 停；否则按 type('d'/'f'/'l') 重建节点，off 前进到 body 之后继续。"

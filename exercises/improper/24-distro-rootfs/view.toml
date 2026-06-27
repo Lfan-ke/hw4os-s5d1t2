@@ -1,0 +1,66 @@
+# 24-distro-rootfs 可视化声明 —— 文件树 → busybox → init → cpio 的 rootfs 四步。
+[[node]]
+id = "tree"
+label = "内存文件树 (路径→节点)"
+[[node]]
+id = "fhs"
+label = "FHS 目录树 (/bin /etc /dev /proc /sys /lib)"
+[[node]]
+id = "busybox"
+label = "busybox 多合一 (argv[0] 分发)"
+[[node]]
+id = "init"
+label = "init PID 1 (挂载+起 shell)"
+[[node]]
+id = "cpio"
+label = "cpio 归档 (initramfs)"
+
+[[edge]]
+from = "tree"
+to   = "fhs"
+[[edge]]
+from = "fhs"
+to   = "busybox"
+[[edge]]
+from = "fhs"
+to   = "init"
+[[edge]]
+from = "tree"
+to   = "cpio"
+
+[[flow]]
+name = "fhs-layout"
+path = ["tree", "fhs"]
+note = "(a) 摆好 FHS 六大目录 + busybox + 符号链接"
+[[flow]]
+name = "multicall"
+path = ["fhs", "busybox"]
+note = "(b) 同一二进制按 argv[0] 变出 ls/cat/echo/mount"
+[[flow]]
+name = "boot"
+path = ["fhs", "init"]
+note = "(c) init 读 inittab → 挂 /proc /sys → 起 shell"
+[[flow]]
+name = "pack-unpack"
+path = ["tree", "cpio"]
+note = "(d) cpio 打包→解包还原整棵树"
+
+[[iface]]
+name = "Node"
+bits = "d/f/l"
+note = "目录 / 文件(字节) / 符号链接(目标)"
+[[iface]]
+name = "cpio header"
+bits = "13 B"
+note = "magic[4] + type(1) + namelen(LE32) + bodylen(LE32)"
+[[iface]]
+name = "TRAILER"
+bits = "10 B"
+note = "name=='TRAILER!!!' 哨兵记录 = 归档结束"
+[[iface]]
+name = "inittab"
+bits = "::action:cmd"
+note = "sysinit 挂载 / askfirst 起 shell"
+
+[wave]
+signals = ["pid1", "sysinit", "mount", "spawn_shell"]

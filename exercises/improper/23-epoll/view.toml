@@ -1,0 +1,57 @@
+# 23-epoll 可视化声明（纯软件实验，无波形）。
+# select 全表扫描 vs epoll 就绪链表：同一组 fd 就绪态，两种「找就绪」的路径。
+
+[[node]]
+id = "fds"
+label = "fd 就绪态数组（每个 fd 一个 readable 位）"
+[[node]]
+id = "selectscan"
+label = "select：逐个扫描全部 fd（O(n)）"
+[[node]]
+id = "interest"
+label = "epoll 兴趣集（epoll_ctl 注册）"
+[[node]]
+id = "readylist"
+label = "epoll 就绪链表（变就绪那一刻挂进来）"
+[[node]]
+id = "wait"
+label = "epoll_wait：只遍历就绪链表（O(ready)）"
+
+[[edge]]
+from = "fds"
+to   = "selectscan"
+[[edge]]
+from = "interest"
+to   = "readylist"
+[[edge]]
+from = "fds"
+to   = "readylist"
+[[edge]]
+from = "readylist"
+to   = "wait"
+
+[[flow]]
+name = "select"
+path = ["fds", "selectscan"]
+note = "select：把全部 fd 从头扫到尾，1 个就绪也要扫 n 次"
+[[flow]]
+name = "epoll"
+path = ["fds", "readylist", "wait"]
+note = "epoll：上升沿把就绪 fd 挂上链表，wait 只看链表，O(ready)"
+[[flow]]
+name = "edge-vs-level"
+path = ["fds", "readylist", "wait"]
+note = "ET 只在上升沿挂一次；LT 仍可读则 wait 重新武装、持续通知"
+
+[[iface]]
+name = "interest"
+bits = "Option<et>"
+note = "兴趣集：None 未注册 / Some(false) 水平触发 LT / Some(true) 边沿触发 ET"
+[[iface]]
+name = "edge_ready"
+bits = "!prev && cur"
+note = "边沿判定：不可读→可读才算一次新事件（ET 的命根）"
+[[iface]]
+name = "scan"
+bits = "u64"
+note = "epoll_wait 检视过的 fd 数 = ready；对照 select 的 = n"

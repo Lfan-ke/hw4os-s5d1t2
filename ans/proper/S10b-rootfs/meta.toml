@@ -1,0 +1,34 @@
+id      = "S10b-rootfs"
+title   = "正经·S10b · initramfs：解开内嵌 cpio → 灌进 RAM-fs → 交棒 /init"
+track   = "proper"
+require = 1
+env     = "qemu-virt"
+weight  = 1
+
+[[variant]]
+id    = "kernel-c"
+axis  = "software"
+lang  = "c"
+dir   = "kernel"
+build = "qemu-virt"
+
+[[variant]]
+id    = "essay"
+axis  = "essay"
+lang  = "text"
+dir   = "essay"
+build = "essay"
+
+[judge]
+expect    = ["CPIO_PARSE_PASS", "POPULATE_PASS", "INIT_FOUND_PASS", "USERSPACE_PASS", "ALL_PASS"]
+forbid    = ["FAIL", "panic", "UNEXPECTED"]
+timeout_s = 20
+
+[[hint]]
+text = "cpio_parse_one：newc 头是 110 字节定长 ASCII，每字段 8 个十六进制字符。namesize 在偏移 94、filesize 在偏移 54，用已给的 cpio_hex8(h+94)/cpio_hex8(h+54) 读出。"
+[[hint]]
+text = "名字紧跟 110B 头之后（h+110，含结尾 0）。数据起始 = off + align4(110+namesize)；下一条头 = 数据起始 + align4(filesize)。align4 已给。"
+[[hint]]
+text = "归档以名为 \"TRAILER!!!\" 的空记录收尾：kstreq(name,\"TRAILER!!!\") 命中就 return 0 让解包停下；否则填好 v 各字段（data 用 arc+数据偏移）、return 1。"
+[[hint]]
+text = "交棒 /init：fs_lookup(\"init\") 得 inode → fs_read 进 init_exec 缓冲 → run_user((uint64_t)init_exec, 用户栈顶)。/init 是机器码，跌进 U 态后经 ecall 打印 banner 再 exit(0)，longjmp 回内核。"

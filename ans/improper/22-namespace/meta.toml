@@ -1,0 +1,44 @@
+id      = "22-namespace"
+title   = "容器隔离 · namespace 切视图 + cgroup 卡配额（一颗内核养出 N 个「小天地」）"
+track   = "improper"
+require = 1               # 任一变体过即完成；多过计辅助分
+env     = "host"          # 纯软件心智模型，host 直接跑
+weight  = 1
+
+# ── 两条软件实现路径（同一套隔离模型的 rust/c 写法）+ 思考题 ──────
+[[variant]]
+id    = "sw-rust"
+axis  = "software"
+lang  = "rust"
+dir   = "sw/rust"
+build = "cargo"
+
+[[variant]]
+id    = "sw-c"
+axis  = "software"
+lang  = "c"
+dir   = "sw/c"
+build = "gcc-host"
+
+[[variant]]
+id    = "essay"
+axis  = "essay"
+lang  = "md"
+dir   = "essay"
+build = "essay"
+
+# ── 统一判题口径 ──────────────────────────────────────────────────
+[judge]
+expect    = ["PIDNS_PASS", "MOUNTNS_PASS", "CGROUP_PASS", "ALL_PASS"]
+forbid    = ["FAIL", "panic", "ERROR"]
+timeout_s = 30
+
+# ── 渐进提示 ──────────────────────────────────────────────────────
+[[hint]]
+text = "PID namespace：一个 ns 持有「按加入顺序排的全局 pid 列表」globals。容器内看到的局部 pid 就是下标+1，所以 globals[0] 是 init=局部 1。ns_local_pid 顺序扫一遍找到 global 返回 i+1，找不到返回 None/0。"
+[[hint]]
+text = "同一个全局进程能同时属于多个 ns（嵌套/共享），它在不同 ns 的列表里下标不同，于是「容器内 pid」也不同——这正是 PIDNS_PASS 想让你看到的：宿主看到的 7777 在 A 容器是 3 号、在 B 容器是 2 号。"
+[[hint]]
+text = "Mount namespace：每个容器各持一张挂载表(路径列表)。mount_lookup 在本表里找 target 的下标，没有就 -1=不可见。A 挂的 /data-a 在 B 表里查不到(=-1)，互不可见，这就是挂载隔离。"
+[[hint]]
+text = "cgroup：charge(used,quota,request) 先算 used+request 是否 <= quota。放得下就批准、返回(used+request,true)；放不下就拒绝、返回(used,false) 用量原封不动。超额被拒后用量绝不能偷偷涨。"

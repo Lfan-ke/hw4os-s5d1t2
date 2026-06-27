@@ -1,0 +1,56 @@
+# 09b-vfs 可视化声明 —— VFS：多文件系统共存于同一组接口之下。
+# 调用者只递一个 path，VFS 按挂载表把它路由到正确的 FS，再由该 FS 解析名字。
+
+[[node]]
+id = "app"
+label = "调用者（只认 path：open/read/write）"
+[[node]]
+id = "vfs"
+label = "VFS 层（挂载表 + 最长前缀路由）"
+[[node]]
+id = "ramfs"
+label = "RamFs（挂 /：/hello /motd，真存储）"
+[[node]]
+id = "devfs"
+label = "DevFs（挂 /dev：/null 吞写 /zero 读全 0）"
+
+[[edge]]
+from = "app"
+to   = "vfs"
+[[edge]]
+from = "vfs"
+to   = "ramfs"
+[[edge]]
+from = "vfs"
+to   = "devfs"
+
+# 数据流场景（TUI 动画 / diagram 高亮）
+[[flow]]
+name = "open-ramfs"
+path = ["app", "vfs", "ramfs"]
+note = "open(\"/hello\") → 最长前缀 \"/\" → RamFs.lookup(\"/hello\") → read 得内容"
+[[flow]]
+name = "cross-mount"
+path = ["app", "vfs", "devfs"]
+note = "open(\"/dev/zero\") → 最长前缀 \"/dev\"(跨过挂载点) → DevFs.lookup(\"/zero\")"
+[[flow]]
+name = "devfs-behavior"
+path = ["app", "vfs", "devfs"]
+note = "同一 read/write 接口：/dev/null 吞写读空、/dev/zero 读出全 0"
+
+# 接口（关键函数）面板
+[[iface]]
+name = "vfs_resolve"
+bits = "path → (mount_idx, rel)"
+note = "最长挂载前缀路由：选更长的 \"/dev\" 而非根 \"/\"；剥前缀得 FS 内相对路径"
+[[iface]]
+name = "FileSystem.lookup"
+bits = "rel → node"
+note = "dentry→inode：各 FS 把名字解析成节点号，找不到=None/-1"
+[[iface]]
+name = "vfs_open"
+bits = "path → OpenFile{mi,node}"
+note = "file 句柄：resolve 路由 + 该 FS 的 lookup 解析，二者皆成才算打开成功"
+
+[wave]
+signals = ["path", "mount_idx", "rel", "fs_name", "node"]

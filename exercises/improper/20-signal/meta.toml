@@ -1,0 +1,44 @@
+id      = "20-signal"
+title   = "异步事件 · 信号：handler 表、pending 位集、mask 与「补投递」"
+track   = "improper"
+require = 1               # 任一变体过即完成；多过计辅助分
+env     = "host"          # 纯软件建模一个「进程」的信号机制，host 直接跑
+weight  = 1
+
+# ── 软件双语言路径（同一信号模型的两种写法）+ 思考题 ──────────────
+[[variant]]
+id    = "sw-rust"
+axis  = "software"
+lang  = "rust"
+dir   = "sw/rust"
+build = "cargo"
+
+[[variant]]
+id    = "sw-c"
+axis  = "software"
+lang  = "c"
+dir   = "sw/c"
+build = "gcc-host"
+
+[[variant]]
+id    = "essay"
+axis  = "essay"
+lang  = "md"
+dir   = "essay"
+build = "essay"
+
+# ── 统一判题口径（四个子题逐个 *_PASS，全过 ALL_PASS）─────────────
+[judge]
+expect    = ["DELIVER_PASS", "MASK_PASS", "PENDING_PASS", "REENTRANT_PASS", "ALL_PASS"]
+forbid    = ["FAIL", "panic", "ERROR"]
+timeout_s = 30
+
+# ── 渐进提示 ──────────────────────────────────────────────────────
+[[hint]]
+text = "raise 就一句话：被屏蔽(is_masked) 就把 pending 位置 1（入队，等以后补投递）；没被屏蔽就立刻 run_handler 投递。DELIVER_MISS=注册后 raise 却没跑 handler；MASK_BAD=屏蔽期间却没进 pending。"
+[[hint]]
+text = "unmask = 清 mask 位 + 补投递：清完 mask 后若该号还挂着 pending，就清掉 pending 位再 run_handler 跑一次。PENDING_MISS=解屏蔽后没有补投递。"
+[[hint]]
+text = "pending 是「位」不是「计数」：屏蔽期间同号信号 raise 多次只留 1 个 pending（合并/丢重复），这正是标准信号 vs 实时信号(逐个排队)的区别。"
+[[hint]]
+text = "可重入由 run_handler 的守卫(given)兜底：handler 运行中再来同号 → 经 raise→run_handler 被 in_handler 守卫拦下入 pending，绝不递归重入(max_depth 恒为 1)，返回后补投递一次被合并的 pending。REENTRANT_BAD=max_depth>1 说明你的 raise 绕过了 run_handler 造成递归。"

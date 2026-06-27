@@ -1,0 +1,8 @@
+[package]
+name = "namespace-sw-rust"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "namespace"
+path = "src/main.rs"

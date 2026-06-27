@@ -1,0 +1,45 @@
+id      = "21-tcp"
+title   = "TCP 连接状态机 · 三次握手、四次挥手与 seq/ack 推进（补 UDP-only 的另一半）"
+track   = "improper"
+require = 1               # C/Rust 任一过即过；essay 独立计辅助分
+env     = "host"          # 纯软件状态机 + mock 通道，host 直接跑
+weight  = 1
+
+# ── 软件双语言路径（同一台 TCP 状态机的两种写法）──────────────────
+[[variant]]
+id    = "sw-rust"
+axis  = "software"
+lang  = "rust"
+dir   = "sw/rust"
+build = "cargo"
+
+[[variant]]
+id    = "sw-c"
+axis  = "software"
+lang  = "c"
+dir   = "sw/c"
+build = "gcc-host"
+
+# ── essay 思考题（关键字判，独立辅助账）────────────────────────────
+[[variant]]
+id    = "essay"
+axis  = "essay"
+lang  = "md"
+dir   = "essay"
+build = "essay"
+
+# ── 统一判题口径（逐题 *_PASS 累计，全过 ALL_PASS）─────────────────
+[judge]
+expect    = ["HANDSHAKE_PASS", "DATA_PASS", "TEARDOWN_PASS", "STATE_PASS", "ALL_PASS"]
+forbid    = ["FAIL", "panic", "ERROR"]
+timeout_s = 30
+
+# ── 渐进提示 ──────────────────────────────────────────────────────
+[[hint]]
+text = "握手是「序号交换」：SYN 不带数据却占 1 个序号。服务器收 SYN 要先记 rcv_nxt=对端seq+1，再回 SYN|ACK(seq=自己iss, ack=rcv_nxt)，自己的 snd_nxt=iss+1。EARLY/MISS 多半是 TODO ①/② 没回报文。"
+[[hint]]
+text = "客户端在 SYN_SENT 收到 SYN|ACK：rcv_nxt=对端seq+1，回纯 ACK(seq=snd_nxt, ack=rcv_nxt)，状态进 ESTABLISHED。握手第三步的 ACK 不占序号。"
+[[hint]]
+text = "数据推进的口诀：发 N 字节，seq=本端 snd_nxt、发完 snd_nxt+=N；收方 rcv_nxt = 收到段的 seq+len，回的 ack 就等于 seq+len（「我连续收到了到这里」）。纯 ACK 不占序号。"
+[[hint]]
+text = "挥手是「半关闭」：主动方发 FIN(占 1 序号)→FIN_WAIT_1；对方回 ACK→CLOSE_WAIT；主动方收 ACK→FIN_WAIT_2；对方再发 FIN→LAST_ACK；主动方回 ACK→TIME_WAIT，定时器到期才 CLOSED。这四步给定，照着读即可。"

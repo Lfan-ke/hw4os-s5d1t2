@@ -1,0 +1,44 @@
+id      = "09b-vfs"
+title   = "VFS · 多文件系统共存于同一组接口（挂载表路由 + ramfs/devfs）"
+track   = "improper"
+require = 1               # 任一变体过即完成；多过计辅助分
+env     = "host"          # 纯软件心智模型，host 直接跑
+weight  = 1
+
+# ── 两条软件实现路径（同一套 VFS 模型的 rust/c 写法）+ 思考题 ──────
+[[variant]]
+id    = "sw-rust"
+axis  = "software"
+lang  = "rust"
+dir   = "sw/rust"
+build = "cargo"
+
+[[variant]]
+id    = "sw-c"
+axis  = "software"
+lang  = "c"
+dir   = "sw/c"
+build = "gcc-host"
+
+[[variant]]
+id    = "essay"
+axis  = "essay"
+lang  = "md"
+dir   = "essay"
+build = "essay"
+
+# ── 统一判题口径 ──────────────────────────────────────────────────
+[judge]
+expect    = ["VFS_PASS", "MOUNT_PASS", "DEVFS_PASS", "DISPATCH_PASS", "ALL_PASS"]
+forbid    = ["FAIL", "panic", "ERROR"]
+timeout_s = 30
+
+# ── 渐进提示 ──────────────────────────────────────────────────────
+[[hint]]
+text = "VFS 四大对象的极简对应：superblock=一个挂好的 FS 实例、inode=FS 内一个节点号、dentry=名字→节点(各 FS 的 lookup)、file=打开句柄 OpenFile{挂载下标,节点号}。调用者只认 path，背后是哪种 FS 由 VFS 路由。"
+[[hint]]
+text = "VFS_PASS：先把 RamFs.lookup 填好（顺序扫文件表，名字相等返回下标当节点号，没有返回 None/-1），open(\"/hello\")→read 才能拿到内容。"
+[[hint]]
+text = "MOUNT/DISPATCH：resolve 要找『最长』挂载前缀。\"/dev/zero\" 同时落在 \"/\"(长1) 和 \"/dev\"(长4) 下，必须选更长的 \"/dev\" 才能跨进 DevFs。已给 is_under(判前缀+边界) 和 subpath(剥前缀得相对路径)，你只写挑最长那条的循环。"
+[[hint]]
+text = "DEVFS_PASS：同一 read/write 接口背后不同 FS 行为——/dev/null 的 write 报告写了 N 字节但不存储(read 出空)、/dev/zero 的 read 返回 ZERO_READ_LEN 个全 0。对照 RamFs 是真存储(写进去读得出)。"

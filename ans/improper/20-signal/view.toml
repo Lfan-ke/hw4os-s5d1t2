@@ -1,0 +1,58 @@
+# 20-signal 可视化声明（纯软件实验，无波形）。
+# 用一张「拍肩膀」图表达信号机制：事件源 → raise → mask 闸门 → handler / pending。
+
+[[node]]
+id = "source"
+label = "事件源（内核 / 另一进程 / 硬件：随时拍你肩膀）"
+[[node]]
+id = "raise"
+label = "raise(sig)：投递判断（被屏蔽？）"
+[[node]]
+id = "pending"
+label = "pending 位集（投递不出去、攒着合并）"
+[[node]]
+id = "handler"
+label = "handler 表（注册的回调，跑起来改标志）"
+
+[[edge]]
+from = "source"
+to   = "raise"
+[[edge]]
+from = "raise"
+to   = "handler"
+[[edge]]
+from = "raise"
+to   = "pending"
+[[edge]]
+from = "pending"
+to   = "handler"
+
+[[flow]]
+name = "deliver"
+path = ["source", "raise", "handler"]
+note = "未屏蔽：raise 直接 run_handler 投递，handler 改标志（DELIVER）"
+[[flow]]
+name = "mask-pend"
+path = ["source", "raise", "pending"]
+note = "屏蔽中：raise 把信号挂进 pending 位（MASK；多次同号合并成一个）"
+[[flow]]
+name = "redeliver"
+path = ["pending", "handler"]
+note = "unmask：清 mask 后把 pending 补投递给 handler（PENDING）"
+[[flow]]
+name = "reentrant"
+path = ["handler", "raise", "pending", "handler"]
+note = "handler 运行中再来同号 → 守卫拦下入 pending，返回后补投递一次（REENTRANT，max_depth==1）"
+
+[[iface]]
+name = "pending"
+bits = "u32 bitset"
+note = "挂起位集 ↔ 内核 sigpending、硬件 mip"
+[[iface]]
+name = "mask"
+bits = "u32 bitset"
+note = "屏蔽位集 ↔ 内核 sigmask、硬件 mie / mstatus.MIE"
+[[iface]]
+name = "in_handler"
+bits = "u32 bitset"
+note = "正在处理中的信号：可重入守卫（↔ sigaction 处理期间自动屏蔽本信号）"
