@@ -8,8 +8,9 @@ CC      := riscv64-unknown-elf-gcc
 COMMONK := $(LABROOT)/common/kernel
 CFLAGS  := -nostdlib -nostartfiles -mcmodel=medany -ffreestanding -fno-pic \
            -Wall -Wextra -O -I$(COMMONK)
-# 入口 + 共享 console + 实验目录的 *.c
-SRCS    := $(COMMONK)/entry.S $(COMMONK)/console.c $(wildcard *.c)
+# 共享源（实验 Makefile 可覆盖 KSRC 选取所需共享组件）+ 实验目录的 *.c/*.S
+KSRC    ?= $(COMMONK)/entry.S $(COMMONK)/console.c
+SRCS    := $(KSRC) $(wildcard *.c) $(wildcard *.S)
 QEMU    := qemu-system-riscv64
 QFLAGS  := -machine virt -nographic -bios default -kernel kernel.elf
 

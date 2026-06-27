@@ -25,4 +25,5 @@ order = [
   "improper/17-bsp",
   "improper/18-syscall",
   "proper/S1-sbi-boot",
+  "proper/S2-trap-timer",
 ]
