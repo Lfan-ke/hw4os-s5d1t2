@@ -7,12 +7,37 @@
 
 ## 一、课程理念
 
-对标 **rustlings** 的逐题递进体验：每题给好脚手架与测试，学生只填 `// TODO` 的核心逻辑，`labctl watch` 边改边自动判定。两条赛道：
+对标 **rustlings** 的逐题递进体验：每题给好脚手架与测试，学生只填 `// TODO` 的核心逻辑，`labctl watch` 边改边自动判定。**三条赛道**，互补的三种教学视角，学习顺序 **不正经 → 正经 → 形态**：
 
-- **不正经赛道（improper）**：用最小、可亲手玩的实验，对 OS 各基础功能建立**感性心智模型**；核心母题是「软件能做的硬件也能做，硬件能做的通用处理器也能模拟」。
-- **正经赛道（proper）**：在完成 rcore 的基础上，从批处理系统起步，一步步引导搭出一个「相对完整」的内核。
+- **不正经赛道（improper）· 心智模型**：用最小、可亲手玩的软件/硬件模型，对 OS 各基础功能建立**感性心智模型**（「没吃过猪肉但见过猪跑」的粗略印象）；核心母题「软件能做的硬件也能做，硬件能做的通用处理器也能模拟」。
+- **正经赛道（proper）· 工程落地**：在 rcore 基础上，从引导起步，在 **qemu-virt 真内核**上一步步搭出一个「相对完整」的 OS（boot→trap→多任务→分页→进程→文件→网络→多核→虚拟化→微内核）。
+- **形态赛道（forms）· 入门科普**：五大内核形态（宏/微/外/库/框）+ 混合的架构权衡，引 xv6/seL4/jos/unikraft/asterinas 真实例。
 
-设计原则：**简化的是学生负担，不是功能完整性**；可适当调整顺序与模型以利入门；完整版作为引申思考。ISA 基准 **RV64GC**。
+设计原则：**简化的是学生负担，不是功能完整性**；**最小依赖 + 留白 TODO + 复杂处给定 + 可扩展引申**（每题只实现当下用得到的，如 S8 仅 sys_write/exit 而非 360 syscall，像 rcore ch1-8；完整版作引申，学生可凭兴趣自行扩成完整 OS）。ISA 基准 **RV64GC**。
+
+> 答案目录约定：题面在 `exercises/<track>/<id>/`（含 `// TODO`），配套参考答案统一放根目录 **`ans/<track>/<id>/`**（labctl `--solutions` 验证 + 学生卡住时参考）。
+
+## 一·B、实际建成 v1 · 61 实验三轨全景
+
+> 本节为反填充：记录课程**实际建成**的最终形态（与下方原始细化设计互为映照；部分实验 id 在落地时微调/新增）。全部经 `labctl verify --solutions` 必修通过。
+
+### 不正经 · 心智模型（26）
+`01` 硬件管理 VLAN · `02` 进程调度 · `03` 编译链接 · `04` 线程 · `05` 纤程(有栈协程) · `06` 无栈协程 · `07` IPC 原子锁 · `08` 文件系统(块设备→inode) · `09` 设备文件(一切皆文件) · **`09b` VFS(多 FS 统一接口+挂载)** · `10` 内存(分层/swap) · `11` 堆与栈 · `12` 地址空间(软件 MMU) · `13` 共享内存 · `14` 特权级 · `15` 引导握手 · `16` 驱动(MMIO/设备树) · `17` BSP 板级 · `18` 系统调用 · **`19` ISA 模拟器(NEMU 式解释器+DiffTest)** · **`20` signal 异步事件** · **`21` TCP 状态机** · **`22` namespace+cgroup 容器隔离** · **`23` epoll I/O 多路复用** · **`24` 迷你发行版/rootfs(FHS+busybox+init+cpio)** · **`25` 组件化内核(arceos 式可组装)**
+
+### 正经 · 工程落地（29，qemu-virt 真内核）
+`S1` SBI 引导 · **`S1b` 裸机最小标准库(core+alloc/newlib)** · `S2` trap+时钟 · `S3` 内核形态 · `S4` 异步运行时 · `S5` 协作调度 · **`S5b` 内核堆(free-list)** · **`S5c` SV39 真分页** · **`S5d` 阻塞同步(mutex/sem/condvar)** · **`S5e` fork+CoW+exec+wait** · `S6` 驱动(NS16550+dtb) · **`S6b` AM 式 HAL(TRM/IOE/CTE)** · **`S6c` PLIC 外部中断** · `S7` 文件系统(RAM 盘) · **`S7b` 内核 VFS(vtable/vnode)** · `S8` 用户态+syscall · **`S8b` mmap+按需调页** · `S9` 迷你 libc · `S10` 用户程序(排序/模板/TUI) · **`S10b` cpio initramfs→/init** · `S11` 网络(ARP/IP/UDP) · `S12` GUI(framebuffer+html/css) · `S13` 多核启动 · `S14` IPC(管道/消息/共享) · `S15` SMP(自旋/读写锁) · `S16` AMP 大小核 · `S17` 虚拟化(H 扩展软件模型) · `S18` mini-TCG · `S19` 微 vs 宏内核
+
+### 形态 · 入门科普（6）
+`F1` 宏内核 · `F2` 微内核 · `F3` 外核 · `F4` 库内核/unikernel · `F5` 框内核(framekernel/Asterinas) · `F6` 混合内核
+
+> **粗体 = 超出原始 DESIGN-E 计划的新增/细分**：覆盖了 rcore ch4(内存/分页)、ch5(进程/fork)、ch8(同步) 的工程缺口，并按「每主题三视角(入门科普/心智模型/工程落地)」补全了 VFS、rootfs、TCP、signal、namespace、epoll、mmap、PLIC、HAL、ISA 模拟器、组件化内核等角度。
+
+### 参考来源（取长补短，皆本地只读）
+- **rcore**（`~/tgln/stage1/2026s-tg-rcore-Lfan-ke`）：ch1-8 教学 OS，正经赛道主线节奏。
+- **arceos**（`~/tgln/stage2/2026s-tg-arceos-Lfan-ke`）：组件化/可组装内核 → `improper/25-component-os`。
+- **YSYX**（`~/ysyx`）：NEMU 解释器+DiffTest → `improper/19`；AM(TRM/IOE/CTE/VME/MPE) HAL → `proper/S6b`。
+- **material**（`~/tgln/stage2/material`）：覆盖 RISC-V 全栈的真实系统源码 + 88 篇演化笔记，gap 分析与各实验取材的资源库（索引 `notes/00-01`）。
+- **oscamp-base-experiment**（atomic/async/coroutine Rust 参考）、**DatenLord**（BSV 语法）、**xv6/seL4/jos/unikraft/Asterinas**（material/core，形态赛道真实例）。
 
 ## 二、每节模板说明
 
@@ -1211,8 +1236,12 @@ harness 约定（贯穿所有阶段）：每个阶段的实验落在 `exercises/
 
 依赖主链：rcore → S1 → S2 → S3 → S4 → S5 →（S6 → S7）→ S8（单核 OS 里程碑）→ S9 → S10 →（S11、S12，单核 userland 完整）→ S13 → S14 → S15 → S16 → S17 → S18 → S19（收尾）。其中 S6 仅需 S2、S11/S12 仅需单核栈，可与相邻阶段并行；S14 还需 S4，S16 还需 S5。
 
-## 七、待商议（💬）
+## 七、已落实的决策（原「待商议」）
 
-- 协程相关两题（纤程/协程）课程设计者标注「还需详议」——见 05/06 节的「简化取舍」建议。
-- 辅助分权重（默认每条 +1；是否按轴加权跨软/硬额外奖励）。
-- 各题 `require` 取值、`env` 默认、是否启用 `// I AM NOT DONE` 门控。
+- ✅ **协程两题**：05 纤程 / 06 协程各含「手动实现简易版 + 使用对应类库设施」两子实验（Rust async/std、C ucontext/pthread）。
+- ✅ **辅助分权重**：默认每多过一条变体 +1 辅助分（独立账，不计入必修）；`labctl score` 分列必修分 / 辅助分。
+- ✅ **require / env**：默认 `require=1`（任一变体过即必修达成）；`env` 按题取 `host`(纯逻辑) / `qemu-virt`(真内核) / `qemu-user`；硬件变体 `iverilog`+`bsc` 双实现。
+- ✅ **未作答门控**：essay 思考题用 rustlings 式哨兵 **`LABCTL_ESSAY_TODO`**（答完删行即过），而非 `// I AM NOT DONE`。
+- ✅ **答案目录**：参考答案统一放根目录 `ans/`，与 `exercises/` 一一对应。
+
+> 详细的最终建成清单见 [一·B 节](#一b实际建成-v1--61-实验三轨全景)。harness 实现见 `labctl/`（7 种 build：essay/cargo/gcc-host/gcc-rv64/iverilog/bsc/qemu-virt）。
