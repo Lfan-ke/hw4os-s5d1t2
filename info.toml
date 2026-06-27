@@ -23,6 +23,7 @@ order = [
   "improper/17-bsp",
   "improper/18-syscall",
   "proper/S1-sbi-boot",
+  "proper/S1b-runtime",
   "proper/S2-trap-timer",
   "proper/S3-kernel-forms",
   "proper/S4-async",

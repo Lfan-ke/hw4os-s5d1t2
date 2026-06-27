@@ -1,0 +1,42 @@
+id      = "S1b-runtime"
+title   = "正经·S1b · 裸机最小标准库：刚流片的板子如何速起 std 开发环境"
+track   = "proper"
+require = 1
+env     = "qemu-virt"
+weight  = 1
+
+# 两条语言路径任一跑通即过；推荐两条都做，体会 Rust / C 速起标准库的异同。
+[[variant]]
+id    = "kernel-rust"
+axis  = "software"
+lang  = "rust"
+dir   = "kernel-rust"
+build = "qemu-virt"
+
+[[variant]]
+id    = "kernel-c"
+axis  = "software"
+lang  = "c"
+dir   = "kernel-c"
+build = "qemu-virt"
+
+[[variant]]
+id    = "essay"
+axis  = "essay"
+lang  = "doc"
+dir   = "essay"
+build = "essay"
+
+[judge]
+expect    = ["ALL_PASS"]
+forbid    = ["FAIL", "panic", "MISS"]
+timeout_s = 30
+
+[[hint]]
+text = "Rust：core 一直在（切片/迭代器/Option 无需分配器）；要用 alloc（Vec/Box/String）必须挂 #[global_allocator]，no_std 还必须有 #[panic_handler]。"
+[[hint]]
+text = "Rust 习题：把 Bump::alloc 实现成对齐 + 从静态 HEAP 切一段返回（越界返回 null）。"
+[[hint]]
+text = "C：newlib/picolibc 的 libc 建在一组 syscall 桩上。malloc 经 _sbrk 拿堆，printf/puts 经 _write 出字节——本题就填这两个桩。"
+[[hint]]
+text = "C 习题：_sbrk 从静态 heap[] bump 一段（越界返回 (void*)-1）；_write 把每个字节经 SBI console putchar(EID=1) 送出。"

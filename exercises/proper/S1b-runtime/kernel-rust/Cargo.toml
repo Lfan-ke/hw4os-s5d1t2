@@ -1,0 +1,14 @@
+[package]
+name = "rt-kernel"
+version = "0.0.0"
+edition = "2021"
+
+[[bin]]
+name = "rt-kernel"
+path = "src/main.rs"
+
+[profile.dev]
+panic = "abort"
+[profile.release]
+panic = "abort"
+opt-level = 1
