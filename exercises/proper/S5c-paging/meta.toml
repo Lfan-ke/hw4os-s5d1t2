@@ -1,0 +1,34 @@
+id      = "S5c-paging"
+title   = "正经·S5c · SV39 虚拟内存：恒等映射保活、三级页表与缺页"
+track   = "proper"
+require = 1
+env     = "qemu-virt"
+weight  = 1
+
+[[variant]]
+id    = "kernel-c"
+axis  = "software"
+lang  = "c"
+dir   = "kernel"
+build = "qemu-virt"
+
+[[variant]]
+id    = "essay"
+axis  = "essay"
+lang  = "text"
+dir   = "essay"
+build = "essay"
+
+[judge]
+expect    = ["PAGING_ON_PASS", "MAP_PASS", "TRANSLATE_PASS", "FAULT_PASS", "ALL_PASS"]
+forbid    = ["FAIL", "panic", "UNEXPECTED"]
+timeout_s = 20
+
+[[hint]]
+text = "SV39：39 位 VA = [38:30]vpn2 | [29:21]vpn1 | [20:12]vpn0 | [11:0]offset；每级页表 512 项、每项 8 字节、恰好一页。"
+[[hint]]
+text = "PTE 低 8 位 V/R/W/X/U/G/A/D；PPN 在 [53:10]（44 位）。非叶 PTE 只置 V（R=W=X=0 表示指向下一级）；叶 PTE 带 R/W/X。物理→PTE：(pa>>12)<<10 | flags | V。"
+[[hint]]
+text = "map_one：从 root 起按 vpn2→vpn1 走两级，缺中间表就 frame_alloc() 新建并写非叶 PTE；最后用 vpn0 写叶 PTE。"
+[[hint]]
+text = "enable_paging：satp=(8<<60)|((uint64_t)root>>12)，csrw satp 前后各 sfence.vma。注意开启瞬间靠恒等映射继续跑——内核当前 PC 与栈所在物理区必须先映射好。"

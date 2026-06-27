@@ -1,0 +1,74 @@
+# 19-isa-emulator 可视化声明 —— 软件 RV64 CPU 的「取指→译码→执行」循环 + DiffTest。
+# CPU 不过是一个循环；DiffTest 把 DUT 轨迹与黄金参考逐指令对拍，抓第一处分歧。
+
+[[node]]
+id = "pc"
+label = "PC（程序计数器，下一条取指地址）"
+[[node]]
+id = "mem"
+label = "内存（字节数组：机器码 + 数据区 0x1000）"
+[[node]]
+id = "decode"
+label = "译码 decode（opcode/funct3/funct7 · rd/rs1/rs2 · imm 符号扩展）"
+[[node]]
+id = "exec"
+label = "执行 execute（ALU / load-store / 改写 PC）"
+[[node]]
+id = "regs"
+label = "寄存器堆 regs[32]（x0 恒 0）"
+[[node]]
+id = "golden"
+label = "黄金参考轨迹（可信 oracle）"
+[[node]]
+id = "diff"
+label = "DiffTest 对拍器（找第一处 PC/寄存器分歧）"
+
+# 取指→译码→执行循环
+[[edge]]
+from = "pc"
+to   = "mem"
+[[edge]]
+from = "mem"
+to   = "decode"
+[[edge]]
+from = "decode"
+to   = "exec"
+[[edge]]
+from = "exec"
+to   = "regs"
+[[edge]]
+from = "exec"
+to   = "pc"
+# 对拍
+[[edge]]
+from = "regs"
+to   = "diff"
+[[edge]]
+from = "golden"
+to   = "diff"
+
+[[flow]]
+name = "fetch-decode-execute"
+path = ["pc", "mem", "decode", "exec", "pc"]
+note = "一颗 CPU 的本质：取指→译码→执行，更新 regs/mem/pc，循环往复"
+
+[[flow]]
+name = "difftest"
+path = ["regs", "diff", "golden"]
+note = "每执行一条指令就拿 DUT 快照与黄金参考比对；第一处不一致 = 第一条出错的指令"
+
+[[iface]]
+name = "opcode"
+bits = "[6:0]"
+note = "0x13 OP-IMM(addi) · 0x33 OP(add/sub) · 0x37 LUI · 0x03 LOAD(ld) · 0x23 STORE(sd) · 0x63 BRANCH(beq/bne) · 0x6f JAL · 0x67 JALR · 0 HALT"
+[[iface]]
+name = "funct3/funct7"
+bits = "[14:12]/[31:25]"
+note = "细分操作：add(f7=0x00) vs sub(f7=0x20)；beq(f3=0) vs bne(f3=1)"
+[[iface]]
+name = "imm"
+bits = "I/S/B/U/J"
+note = "各型立即数按 ISA 拼接 + 符号扩展；分支/跳转目标 = pc + imm"
+
+[wave]
+signals = ["clk", "pc", "inst", "rd", "result"]

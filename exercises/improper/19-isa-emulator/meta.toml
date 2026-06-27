@@ -1,0 +1,44 @@
+id      = "19-isa-emulator"
+title   = "ISA 模拟器 · 取指→译码→执行循环 + DiffTest 差分对拍"
+track   = "improper"
+require = 1               # 任一变体过即完成；多过计辅助分
+env     = "host"          # 纯软件模型，host 直接跑
+weight  = 1
+
+# ── 两条软件实现路径（同一颗软件 RV64 CPU 的 rust/c 写法）+ 思考题 ──
+[[variant]]
+id    = "sw-rust"
+axis  = "software"
+lang  = "rust"
+dir   = "sw/rust"
+build = "cargo"
+
+[[variant]]
+id    = "sw-c"
+axis  = "software"
+lang  = "c"
+dir   = "sw/c"
+build = "gcc-host"
+
+[[variant]]
+id    = "essay"
+axis  = "essay"
+lang  = "md"
+dir   = "essay"
+build = "essay"
+
+# ── 统一判题口径 ──────────────────────────────────────────────────
+[judge]
+expect    = ["DECODE_PASS", "EXEC_PASS", "DIFFTEST_PASS", "ALL_PASS"]
+forbid    = ["FAIL", "panic", "ERROR"]
+timeout_s = 30
+
+# ── 渐进提示 ──────────────────────────────────────────────────────
+[[hint]]
+text = "取指→译码→执行：step() 先 fetch() 读 4 字节，decode() 已给你拆好所有字段(opcode/funct3/funct7/rd/rs1/rs2/imm_*)，你只在 execute 的 match 里补 add/sub/beq/bne。"
+[[hint]]
+text = "R 型(opcode 0x33,funct3 0)用 funct7 区分：0x00 是 add(rs1+rs2)、0x20 是 sub(rs1-rs2)，写入 rd。别忘了 x0 恒 0(wreg 已替你兜底)。"
+[[hint]]
+text = "分支(opcode 0x63)：funct3==0 是 beq(相等跳)、==1 是 bne(不等跳)；跳转目标是 pc+imm_b(相对 pc 的有符号偏移，不是 pc+4)。条件不成立就保持顺序流。"
+[[hint]]
+text = "DiffTest：dut 与 GOLDEN 都是每步一个快照 [pc,x5,x6,x7,x9,x12,x13]。双层循环 k×col 找第一处 dut[k][col]!=GOLDEN[k][col]，打印第 k+1 条指令该列 ref/dut，return；全等才 DIFFTEST_PASS。"

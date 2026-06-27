@@ -1,0 +1,32 @@
+id      = "S5d-sync"
+title   = "正经·S5d · 内核阻塞同步原语：互斥锁 / 信号量 / 条件变量（阻塞 vs 自旋）"
+track   = "proper"
+require = 1
+env     = "qemu-virt"
+weight  = 1
+
+[[variant]]
+id    = "kernel-c"
+axis  = "software"
+lang  = "c"
+dir   = "kernel"
+build = "qemu-virt"
+
+[[variant]]
+id    = "essay"
+axis  = "essay"
+lang  = "text"
+dir   = "essay"
+build = "essay"
+
+[judge]
+expect    = ["MUTEX_PASS", "SEM_PASS", "CONDVAR_PASS", "ALL_PASS"]
+forbid    = ["FAIL", "panic", "UNEXPECTED"]
+timeout_s = 20
+
+[[hint]]
+text = "阻塞核心（wq_block）= 三步：把 cur_task() 入等待队列（ids[tail]、tail 取模推进、count++）→ sched_block()（置 BLOCKED + __switch 走人）。被唤醒后调度器再次选中它时正好从 sched_block() 之后返回，继续 while 重检条件。"
+[[hint]]
+text = "唤醒核心（wq_wake_one）= 出队一个等待者并置回 READY：取 ids[head]、head 取模推进、count--、sched_wake(id)。注意只是“让它重新可被调度”，并不立刻切过去——单核协作下要等当前任务自己让出/阻塞/退出。"
+[[hint]]
+text = "判 *_PASS 不仅看数据对，还看 g_block_events>0（真的有任务进入 BLOCKED）。自旋让出（sync_yield）不进 BLOCKED 态、g_block_events 恒为 0——这就是“阻塞 vs 自旋”的可观测分界：阻塞的任务零 CPU 占用、不会被调度器选中。"

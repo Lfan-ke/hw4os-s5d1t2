@@ -1,0 +1,34 @@
+id      = "S5b-kheap"
+title   = "正经·S5b · 内核堆分配器：静态池上的 alloc/free/复用/合并"
+track   = "proper"
+require = 1
+env     = "qemu-virt"
+weight  = 1
+
+[[variant]]
+id    = "kernel-c"
+axis  = "software"
+lang  = "c"
+dir   = "kernel"
+build = "qemu-virt"
+
+[[variant]]
+id    = "essay"
+axis  = "essay"
+lang  = "text"
+dir   = "essay"
+build = "essay"
+
+[judge]
+expect    = ["ALLOC_PASS", "REUSE_PASS", "COALESCE_PASS", "ALL_PASS"]
+forbid    = ["FAIL", "panic", "UNEXPECTED"]
+timeout_s = 20
+
+[[hint]]
+text = "块头 block_t{ size, next } 占 16 字节；size 是「连头带尾」的总字节、恒 16 对齐；payload 在 +HDR 处，因 HDR==16 自然 16 对齐。"
+[[hint]]
+text = "kalloc 用 first-fit：遍历地址有序的 free_list，找第一个 size>=total 的块；剩余够装下一个最小块(>=HDR+ALIGN)就分裂，否则整块取走。用二级指针 link 便于原地摘除。"
+[[hint]]
+text = "kfree 两步：先按地址升序插回链表(找到 prev<b<cur)，再分别与后继 cur、前驱 prev 判相邻((char*)x+x->size==(char*)y)并合并，吞掉对方的 size 与 next。"
+[[hint]]
+text = "合并(coalesce)是对抗外部碎片的关键：不合并的话，连续 free 出的相邻碎块各自太小，装不下稍大的请求，只能去高地址，碎片越攒越多。"
