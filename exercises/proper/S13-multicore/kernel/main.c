@@ -19,21 +19,32 @@ void hart1_main(uint64_t hartid) {
 }
 
 void kmain(void) {
-    kputs("\n[S13] multicore: SBI HSM hart_start + shared-slot handshake\n");
+    /* 引导 hartid 由 OpenSBI 经 a0 传入（common/entry.S 不碰 a0），必须最先捕获。
+       -smp 下引导核不确定，故唤醒一个确定不同于引导核的 target hart（给定）。 */
+    uint64_t boot_hart;
+    asm volatile("mv %0, a0" : "=r"(boot_hart));
+    uint64_t target = (boot_hart == 0) ? 1 : 0;
 
-    /* 初始化邮箱：清上线标志，预置两个待交换槽位（在唤醒 hart1 之前写好）。 */
+    kputs("\n[S13] multicore: SBI HSM hart_start + shared-slot handshake\n");
+    kputs("boot hart = ");
+    kputdec(boot_hart);
+    kputs(", target hart = ");
+    kputdec(target);
+    console_putchar('\n');
+
+    /* 初始化邮箱：清上线标志，预置两个待交换槽位（在唤醒 target 之前写好）。 */
     g_mbox.online    = 0;
     g_mbox.hart_id   = 0;
     g_mbox.slot[0]   = SLOT_A;
     g_mbox.slot[1]   = SLOT_B;
     g_mbox.slot_done = 0;
-    smp_fence(); /* 先把邮箱写出去，再唤醒 hart1 */
+    smp_fence(); /* 先把邮箱写出去，再唤醒 target */
 
-    kputs("hart0 online (boot hart), starting hart1 via sbi_hart_start...\n");
+    kputs("boot hart online, starting target hart via sbi_hart_start...\n");
     /* ===== 在这里写「hart_start 调用」 ===== */
-    /* TODO(hart_start)：唤醒 hartid=HART1_ID，入口=hart1_entry（物理地址），opaque=0：
-     *   r = sbi_hart_start(HART1_ID, (uint64_t)hart1_entry, 0);
-     * 现在用占位值 -1：hart1 不被唤醒 → 不会出 SMP_BOOT_PASS（但能编译、能跑、不死锁）。 */
+    /* TODO(hart_start)：唤醒 hartid=target，入口=hart1_entry（物理地址），opaque=0：
+     *   r = sbi_hart_start(target, (uint64_t)hart1_entry, 0);
+     * 现在用占位值 -1：target 不被唤醒 → 不会出 SMP_BOOT_PASS（但能编译、能跑、不死锁）。 */
     long r = -1;
     kputs("sbi_hart_start ret=");
     kputdec((uint64_t)r);
