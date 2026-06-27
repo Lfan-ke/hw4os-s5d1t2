@@ -29,6 +29,7 @@ order = [
   "improper/22-namespace",
   "improper/23-epoll",
   "improper/24-distro-rootfs",
+  "improper/25-component-os",
   "proper/S1-sbi-boot",
   "proper/S1b-runtime",
   "proper/S2-trap-timer",

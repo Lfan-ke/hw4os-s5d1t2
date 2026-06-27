@@ -1,0 +1,45 @@
+id      = "25-component-os"
+title   = "组件化 OS · 内核不必从头写：把组件像积木按需组装出不同形态"
+track   = "improper"
+require = 1               # 任一变体过即完成；多过计辅助分
+env     = "host"          # 纯软件心智模型，host 直接跑
+weight  = 1
+
+# ── 实现路径（同一套「组件 vtable + 特性开关组装」模型的 rust / c 两写法）+ 思考题 ──
+[[variant]]
+id    = "sw-rust"
+axis  = "software"
+lang  = "rust"
+dir   = "sw/rust"
+build = "cargo"
+
+[[variant]]
+id    = "sw-c"
+axis  = "software"
+lang  = "c"
+dir   = "sw/c"
+build = "gcc-host"
+
+[[variant]]
+id    = "essay"
+axis  = "essay"
+lang  = "md"
+dir   = "essay"
+build = "essay"
+
+# ── 统一判题口径 ───────────────────────────────────────────────────
+# 四段各打印一个 *_PASS，全过再打印 ALL_PASS；任何 *_FAIL/panic 即未过。
+[judge]
+expect    = ["COMPONENT_PASS", "COMPOSE_UNI_PASS", "COMPOSE_MONO_PASS", "SWAP_PASS", "ALL_PASS"]
+forbid    = ["FAIL", "panic", "ERROR"]
+timeout_s = 30
+
+# ── 渐进提示 ──────────────────────────────────────────────────────
+[[hint]]
+text = "组件就是「名字 + 函数指针」的 vtable：Allocator{name, alloc}、Console{name, write}、Scheduler{name, run}。每个有 1~2 个实现，注册表 make_allocator/make_scheduler 按特性枚举返回对应那一个——这就是「按特性选实现」。"
+[[hint]]
+text = "build_kernel(cfg) 就是组装工序：alloc = make_allocator(cfg.alloc_kind)；has_sched = (cfg.sched_kind != NoSched)，sched = make_scheduler(cfg.sched_kind)；syscall_boundary = cfg.syscall。把选好的组件塞进 Kernel 即可。"
+[[hint]]
+text = "两种形态只是两份 cfg：UNI = {Bump, NoSched, syscall=false}（无调度器、直链、kcall 不计陷入）；MONO = {Bump, Fifo, syscall=true}（装调度器、过 syscall 边界、kcall 每次 traps+1）。同一套组件，cfg 不同就拼出不同形态。"
+[[hint]]
+text = "freelist 替换实现：固定槽分配——n>SLOT(64) 或 slots>=CAP(16) 返回 -1；否则 off = slots*SLOT，slots+=1，返回 off。策略与 bump 不同，但同样满足「区间不重叠」，所以 SWAP（换 freelist+rr）后 OS 仍工作。"

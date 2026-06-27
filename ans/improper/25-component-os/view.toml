@@ -1,0 +1,80 @@
+# 25-component-os 可视化声明 —— 组件 vtable → 特性开关组装 → 两形态 → 热替换。
+# 软件是一组函数指针 + 一个 build_kernel(cfg)：同一套组件，不同 cfg 拼出不同形态。
+
+[[node]]
+id = "registry"
+label = "组件注册表 (make_allocator/scheduler/console)"
+[[node]]
+id = "alloc"
+label = "Allocator 组件 (bump / freelist)"
+[[node]]
+id = "sched"
+label = "Scheduler 组件 (fifo / rr)"
+[[node]]
+id = "console"
+label = "Console 组件 (plain)"
+[[node]]
+id = "build"
+label = "build_kernel(cfg) 组装器 (按特性选实现+接线)"
+[[node]]
+id = "uni"
+label = "UNIKERNEL 形态 (最小组件·无 syscall 边界·0 陷入)"
+[[node]]
+id = "mono"
+label = "MONOLITHIC 形态 (多组件·syscall 边界·有陷入)"
+
+[[edge]]
+from = "alloc"
+to   = "registry"
+[[edge]]
+from = "sched"
+to   = "registry"
+[[edge]]
+from = "console"
+to   = "registry"
+[[edge]]
+from = "registry"
+to   = "build"
+[[edge]]
+from = "build"
+to   = "uni"
+[[edge]]
+from = "build"
+to   = "mono"
+
+[[flow]]
+name = "component"
+path = ["alloc", "registry"]
+note = "(a) 组件可独立用 / 注册表按特性选实现 (COMPONENT)"
+[[flow]]
+name = "compose-uni"
+path = ["registry", "build", "uni"]
+note = "(b) cfg={Bump,NoSched,no-syscall} 组装出 unikernel (COMPOSE_UNI)"
+[[flow]]
+name = "compose-mono"
+path = ["registry", "build", "mono"]
+note = "(c) cfg={Bump,Fifo,syscall} 组装出宏内核 (COMPOSE_MONO)"
+[[flow]]
+name = "hotswap"
+path = ["alloc", "build", "mono"]
+note = "(d) 换 freelist+rr 实现，OS 仍工作 (SWAP)"
+
+[[iface]]
+name = "Allocator"
+bits = "alloc(state,n)->off"
+note = "bump 紧凑 / freelist 64 槽；契约：区间不重叠"
+[[iface]]
+name = "Scheduler"
+bits = "run(tasks,out)->len"
+note = "fifo 顺序 / rr 轮转；契约：每任务 burst 步全跑完"
+[[iface]]
+name = "KernelConfig"
+bits = "alloc_kind,sched_kind,syscall"
+note = "特性开关：选实现 + 装不装调度器 + 要不要陷入墙"
+[[iface]]
+name = "kcall"
+bits = "syscall_boundary?traps+1"
+note = "app→OS 统一入口；形态差别只在那道陷入墙"
+
+[wave]
+signals = ["alloc_kind", "sched_kind", "syscall", "traps"]

@@ -169,39 +169,97 @@ fn run_one(ex: &Exercise, root: &Path, solutions: bool) -> score::ExerciseScore 
     score_exercise(ex, results)
 }
 
-fn print_exercise_result(s: &score::ExerciseScore) {
+// ANSI 颜色（仅 labctl 人类面板用；与被判程序输出无关，不影响判题）
+const C_GRN: &str = "\x1b[32m";
+const C_YEL: &str = "\x1b[33m";
+const C_RED: &str = "\x1b[31m";
+const C_DIM: &str = "\x1b[2m";
+const C_RST: &str = "\x1b[0m";
+
+fn print_exercise_result(
+    s: &score::ExerciseScore,
+    variants: &[crate::manifest::Variant],
+    solutions: bool,
+) {
+    let axis_of = |id: &str| -> &str {
+        variants
+            .iter()
+            .find(|v| v.id == id)
+            .map(|v| v.axis.as_str())
+            .unwrap_or("")
+    };
     println!("\n▌ {}  — {}", s.rel, s.title);
+    // 已被「通过」覆盖的轴（软件 / 硬件 / essay）。
+    let mut covered: std::collections::HashSet<&str> = std::collections::HashSet::new();
     for r in &s.results {
-        let detail = match &r.status {
-            Status::Pass => "通过".to_string(),
-            Status::Fail(why) => format!("失败：{}", why),
-            Status::Unavailable => "工具链缺失（跳过，不计分）".to_string(),
-            Status::Error(e) => format!("错误：{}", e.lines().next().unwrap_or("")),
-        };
+        if r.status == Status::Pass {
+            covered.insert(axis_of(&r.id));
+        }
+    }
+    for r in &s.results {
         let warn = if r.warnings > 0 {
             format!(" ({}w)", r.warnings)
         } else {
             String::new()
         };
-        println!("   {} {:<8}{} {}", r.status.symbol(), r.id, warn, detail);
-        // 失败/错误时展示日志尾部，便于定位
-        if matches!(r.status, Status::Fail(_) | Status::Error(_)) && !r.log.trim().is_empty() {
+        // 学生练习(非 --solutions)中必修已达成时：同轴已过的备选→灰「无需重复」（rust/c、v/bsv 二选一）；
+        // 尚未覆盖的轴→黄「可挑战」（跨轴/综合才是真正的 what-if，鼓励多手抓拿辅助分）。
+        let soft = !solutions && s.required_done && matches!(r.status, Status::Fail(_));
+        let axis = axis_of(&r.id);
+        let (color, sym, detail, show_log) = match &r.status {
+            Status::Pass => (C_GRN, "✓", "通过".to_string(), false),
+            Status::Fail(_) if soft && covered.contains(axis) => (
+                C_DIM,
+                "○",
+                "备选途径（同轴 rust/c 或 v/bsv 二选一，已过无需重复）".to_string(),
+                false,
+            ),
+            Status::Fail(_) if soft => (
+                C_YEL,
+                "◌",
+                "可挑战：换个角度做这一轴（辅助分；必修已达成，不计失败）".to_string(),
+                false,
+            ),
+            Status::Fail(why) => (C_RED, "✗", format!("失败：{}", why), true),
+            Status::Unavailable => (C_DIM, "⊘", "工具链缺失（跳过，不计分）".to_string(), false),
+            Status::Error(e) => (C_RED, "!", format!("错误：{}", e.lines().next().unwrap_or("")), true),
+        };
+        println!("   {}{} {:<8}{}{} {}", color, sym, r.id, warn, C_RST, detail);
+        if show_log && !r.log.trim().is_empty() {
             for line in r.log.trim_end().lines().rev().take(6).collect::<Vec<_>>().iter().rev() {
-                println!("       │ {}", line);
+                println!("       {}│ {}{}", C_DIM, line, C_RST);
             }
         }
     }
-    let mark = if s.required_done { "✓ 完成" } else { "✗ 未达成" };
+    // 可挑战的「轴」数：有变体但尚未被通过覆盖的轴（软/硬/essay 各算一个角度）。
+    let mut all_axes: std::collections::HashSet<&str> = std::collections::HashSet::new();
+    for r in &s.results {
+        all_axes.insert(axis_of(&r.id));
+    }
+    let challenge_axes = all_axes.iter().filter(|a| !covered.contains(*a)).count();
+    let (mc, mark) = if s.required_done {
+        (C_GRN, "✓ 完成")
+    } else {
+        (C_RED, "✗ 未达成")
+    };
+    let extra = if !solutions && s.required_done && challenge_axes > 0 {
+        format!(
+            "  {}（还有 {} 个角度可挑战拿辅助分）{}",
+            C_YEL, challenge_axes, C_RST
+        )
+    } else {
+        String::new()
+    };
     println!(
-        "   ── 必修 {} (通过 {}/{} 条，require={})  辅助分 +{}",
-        mark, s.passed, s.results.len(), s.require, s.bonus
+        "   ── 必修 {}{}{} (通过 {}/{} 条，require={})  辅助分 +{}{}",
+        mc, mark, C_RST, s.passed, s.results.len(), s.require, s.bonus, extra
     );
 }
 
 fn cmd_run(course: &Course, root: &Path, id: &Option<String>, solutions: bool) -> Result<()> {
     let ex = resolve(course, id)?;
     let s = run_one(ex, root, solutions);
-    print_exercise_result(&s);
+    print_exercise_result(&s, &ex.variants, solutions);
     if !s.required_done {
         std::process::exit(1);
     }
@@ -216,7 +274,7 @@ fn cmd_verify(course: &Course, root: &Path, solutions: bool) -> Result<Board> {
     let mut items = Vec::new();
     for ex in &course.exercises {
         let s = run_one(ex, root, solutions);
-        print_exercise_result(&s);
+        print_exercise_result(&s, &ex.variants, solutions);
         items.push(s);
     }
     let board = Board { items };
