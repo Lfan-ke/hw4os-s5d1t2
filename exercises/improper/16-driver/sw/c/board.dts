@@ -1,0 +1,27 @@
+/dts-v1/;
+
+/* 16.2：补全 blink/gpio 两个节点的 compatible 与 reg（lamp 已给好，勿改）。
+ * 验证：dtc -I dts -O dtb -o board.dtb board.dts && fdtdump board.dtb
+ * 注意：判题实际读的是源码里的 board_nodes() 表——两边都要填一致。 */
+/ {
+	#address-cells = <1>;
+	#size-cells = <1>;
+	model = "acme-devkit";
+
+	blink@10001000 {
+		/* TODO: compatible 应为 "acme,blink"，reg=<0x10001000 0x1000> */
+		compatible = "TODO,fillme";
+		reg = <0x0 0x0>;
+	};
+
+	gpio@10002000 {
+		/* TODO: compatible 应为 "acme,gpio"，reg=<0x10002000 0x1000> */
+		compatible = "TODO,fillme";
+		reg = <0x0 0x0>;
+	};
+
+	lamp@10003000 {
+		compatible = "acme,blink-v2";
+		reg = <0x10003000 0x1000>;
+	};
+};

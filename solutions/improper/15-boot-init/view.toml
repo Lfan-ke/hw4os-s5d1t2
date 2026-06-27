@@ -1,0 +1,70 @@
+# 15-boot-init 可视化声明 —— 驱动 labctl TUI 拓扑/数据流。
+# 一句话母题：软件是硬件的开机咒语，链接顺序决定谁先念咒。
+
+[[node]]
+id = "unlock"
+label = "UNLOCK ← magic"
+[[node]]
+id = "clkdiv"
+label = "CLKDIV ← 1..15"
+[[node]]
+id = "ctrl"
+label = "CTRL ← EN|LE"
+[[node]]
+id = "status"
+label = "STATUS.READY 轮询"
+[[node]]
+id = "data"
+label = "DATA 读写"
+
+[[edge]]
+from = "unlock"
+to   = "clkdiv"
+[[edge]]
+from = "clkdiv"
+to   = "ctrl"
+[[edge]]
+from = "ctrl"
+to   = "status"
+[[edge]]
+from = "status"
+to   = "data"
+
+# 数据流场景（TUI 动画）
+[[flow]]
+name = "broken-boot"
+path = ["data"]
+note = "未握手直接用 DATA → 吐 0xBADB007 (LOCKED)"
+[[flow]]
+name = "handshake"
+path = ["unlock", "clkdiv", "ctrl", "status"]
+note = "四步握手 → STATUS.READY=1"
+[[flow]]
+name = "order"
+path = ["unlock", "clkdiv", "ctrl", "status", "data"]
+note = "boot 先于 app：抢跑触发 BOOT_FAULT"
+
+# 接口（寄存器图）面板
+[[iface]]
+name = "UNLOCK"
+bits = "[31:0]"
+note = "写 0xB007C0DE 解锁配置总线"
+[[iface]]
+name = "CLKDIV"
+bits = "[3:0]"
+note = "合法 1..15；0 → BADCLK，设备永不就绪"
+[[iface]]
+name = "CTRL"
+bits = "[1:0]"
+note = "bit0=EN 使能 · bit1=LE 锁定使能"
+[[iface]]
+name = "STATUS"
+bits = "[3:0]"
+note = "bit0=READY 1=LOCKED 2=BADCLK 3=NOTEN"
+[[iface]]
+name = "DATA"
+bits = "[31:0]"
+note = "就绪后读回变换值 raw^0xCAFE；未就绪读回 0x0BADB007"
+
+[wave]
+signals = ["clk", "addr", "unlocked", "en", "ready", "rdata"]

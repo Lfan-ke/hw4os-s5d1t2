@@ -1,0 +1,69 @@
+# 10-memory 可视化声明 —— 驱动 labctl TUI 拓扑/数据流；硬件部分可对照 netlist。
+
+[[node]]
+id = "fast"
+label = "FAST 设备（小/快/易失）"
+[[node]]
+id = "slow"
+label = "SLOW 设备（大/慢/持久）"
+[[node]]
+id = "blk"
+label = "blk_read/blk_write 统一接口"
+[[node]]
+id = "pt"
+label = "页表 + translate（软件 MMU）"
+[[node]]
+id = "route"
+label = "addr_route / mem_decode"
+
+[[edge]]
+from = "blk"
+to   = "fast"
+[[edge]]
+from = "blk"
+to   = "slow"
+[[edge]]
+from = "pt"
+to   = "blk"
+[[edge]]
+from = "route"
+to   = "blk"
+
+# 数据流场景（TUI 动画）
+[[flow]]
+name = "scenario-a"
+path = ["slow", "blk", "fast", "blk", "slow"]
+note = "场景一：SLOW→FAST 搬入 · 快设备上计算 · FAST→SLOW 持久回写"
+[[flow]]
+name = "swap-pagein"
+path = ["pt", "blk", "slow", "fast"]
+note = "场景二：缺页 → 从 swap 槽(vpn) 换入空闲帧，置 present"
+[[flow]]
+name = "swap-pageout"
+path = ["pt", "fast", "blk", "slow"]
+note = "场景二：帧满 → FIFO 选 victim，脏页回写 swap 后再换入"
+[[flow]]
+name = "unified-decode"
+path = ["route", "blk", "fast", "slow"]
+note = "场景三：线性地址 → (cs_fast/cs_slow, off) 平坦落两设备"
+
+# 接口面板
+[[iface]]
+name = "per_access"
+bits = "u64"
+note = "访问代价：FAST=1 SLOW=10（分层成立 cost(FAST)<cost(SLOW)）"
+[[iface]]
+name = "Pte"
+bits = "present|frame|dirty"
+note = "单级页表项：驻留位 / 帧号 / 脏位"
+[[iface]]
+name = "swap slot"
+bits = "= vpn"
+note = "swap 槽号直接用 vpn 映射（省去槽分配器）"
+[[iface]]
+name = "la / (cs_fast,cs_slow,off)"
+bits = "[7:0] -> 1+1+[7:0]"
+note = "la<FAST_SIZE 落 FAST，其余落 SLOW，off=la-FAST_SIZE"
+
+[wave]
+signals = ["clk", "la", "cs_fast", "cs_slow", "local_off"]

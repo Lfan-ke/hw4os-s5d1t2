@@ -1,0 +1,76 @@
+# 16-driver 可视化声明 —— labctl TUI 拓扑/数据流。
+# 主线：硬件名片(dtb) → 解析 → compatible 匹配驱动表 → probe/bind → /dev。
+
+[[node]]
+id = "dtb"
+label = "设备树 dtb (compatible/reg)"
+[[node]]
+id = "parse"
+label = "fdt 解析 (大端遍历)"
+[[node]]
+id = "table"
+label = "驱动表 (compatible→probe)"
+[[node]]
+id = "match"
+label = "字符匹配 strcmp"
+[[node]]
+id = "probe"
+label = "probe / bind 建实例"
+[[node]]
+id = "dev"
+label = "/dev/<name> (FileLike)"
+[[node]]
+id = "mmio"
+label = "MMIO 寄存器 (ID/CTRL/STATUS/DATA)"
+
+[[edge]]
+from = "dtb"
+to   = "parse"
+[[edge]]
+from = "parse"
+to   = "match"
+[[edge]]
+from = "table"
+to   = "match"
+[[edge]]
+from = "match"
+to   = "probe"
+[[edge]]
+from = "probe"
+to   = "dev"
+[[edge]]
+from = "probe"
+to   = "mmio"
+
+[[flow]]
+name = "mmio-probe"
+path = ["mmio", "probe"]
+note = "16.1 裸机 MMIO：probe 读 ID + 握手收发"
+[[flow]]
+name = "dtb-match"
+path = ["dtb", "parse", "match", "probe"]
+note = "16.2 解析 dtb，compatible 命中驱动 → probe；未知跳过"
+[[flow]]
+name = "derive-plug"
+path = ["table", "match", "probe"]
+note = "16.3 新驱动加一行登记即被自动发现（框架零改）"
+[[flow]]
+name = "bus-user"
+path = ["probe", "dev"]
+note = "16.4 bind → /dev → 用户态 open/read/write 转发"
+
+[[iface]]
+name = "MMIO regs"
+bits = "[31:0]×4"
+note = "0x0 ID 0x4 CTRL 0x8 STATUS 0xC DATA"
+[[iface]]
+name = "compatible"
+bits = "string"
+note = "硬件名片：acme,blink / acme,gpio / acme,blink-v2"
+[[iface]]
+name = "reg"
+bits = "<base size>"
+note = "节点地址窗口（probe 的入参）"
+
+[wave]
+signals = ["clk", "rst", "sel", "we", "addr", "wdata", "rdata"]

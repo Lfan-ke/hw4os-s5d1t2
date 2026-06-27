@@ -68,10 +68,13 @@ pub fn run_variant(ex: &Exercise, base_dir: &Path, v: &Variant, build_root: &Pat
     let timeout_s = ex.judge.timeout_s;
 
     let res = match v.build.as_str() {
+        "essay" => run_essay(&vdir),
         "cargo" => run_cargo(&vdir, timeout_s),
         "gcc-host" => run_gcc_host(&vdir, &bdir, timeout_s),
+        "gcc-rv64" => run_gcc_rv64(&vdir, &bdir, timeout_s),
         "iverilog" => run_iverilog(&vdir, &bdir, timeout_s),
         "bsc" => run_bsc(&vdir, &bdir, v, timeout_s),
+        "qemu-virt" => run_qemu_virt(&vdir, timeout_s),
         other => Err(format!("未知 build 关键字: {}", other)),
     };
 
@@ -85,9 +88,20 @@ pub fn run_variant(ex: &Exercise, base_dir: &Path, v: &Variant, build_root: &Pat
                     log: run.log,
                 };
             }
-            let status = match judge::judge_output(&run.output, &ex.judge) {
-                Ok(()) => Status::Pass,
-                Err(why) => Status::Fail(why),
+            let status = if v.build == "essay" {
+                // 思考题：rustlings 式——答案非空且删掉未作答哨兵即过
+                if run.output.trim().is_empty() {
+                    Status::Fail("答案为空".into())
+                } else if run.output.contains("LABCTL_ESSAY_TODO") {
+                    Status::Fail("仍含未作答哨兵 LABCTL_ESSAY_TODO（作答后删除该行）".into())
+                } else {
+                    Status::Pass
+                }
+            } else {
+                match judge::judge_output(&run.output, &ex.judge) {
+                    Ok(()) => Status::Pass,
+                    Err(why) => Status::Fail(why),
+                }
             };
             VariantResult {
                 id: v.id.clone(),
@@ -171,6 +185,85 @@ fn run_gcc_host(dir: &Path, bdir: &Path, timeout_s: u64) -> Result<RunOutput, St
     let run = exec_run(&bin.to_string_lossy(), &[], bdir, timeout_s)?;
     let s = combine(&run);
     Ok(RunOutput { output: s.clone(), warnings, log: format!("{cerr}{s}") })
+}
+
+// ── qemu-virt（正经赛道：make kernel.elf → qemu-system-riscv64 S 态内核）──
+fn run_qemu_virt(dir: &Path, timeout_s: u64) -> Result<RunOutput, String> {
+    let mk = Command::new("make")
+        .arg("kernel.elf")
+        .current_dir(dir)
+        .output()
+        .map_err(|e| format!("make 执行失败: {}", e))?;
+    let mkerr = combine(&mk);
+    if !mk.status.success() {
+        return Err(format!("内核构建失败:\n{}", mkerr));
+    }
+    let warnings = mkerr.matches("warning:").count();
+    let elf = dir.join("kernel.elf");
+    if !elf.is_file() {
+        return Err("make 未产出 kernel.elf".into());
+    }
+    let args = [
+        OsString::from("-machine"),
+        OsString::from("virt"),
+        OsString::from("-nographic"),
+        OsString::from("-bios"),
+        OsString::from("default"),
+        OsString::from("-kernel"),
+        elf.into_os_string(),
+    ];
+    let run = exec_run("qemu-system-riscv64", &args, dir, timeout_s)?;
+    let s = combine(&run);
+    Ok(RunOutput {
+        output: s.clone(),
+        warnings,
+        log: format!("{mkerr}{s}"),
+    })
+}
+
+// ── essay（思考题：读答案文件，judge 用 expect 关键字）────────────
+fn run_essay(dir: &Path) -> Result<RunOutput, String> {
+    let mut files = files_with_ext(dir, "md");
+    files.extend(files_with_ext(dir, "txt"));
+    let f = files
+        .into_iter()
+        .next()
+        .ok_or("essay 变体目录需有 .md/.txt 答案文件")?;
+    let content = std::fs::read_to_string(&f).map_err(|e| e.to_string())?;
+    Ok(RunOutput {
+        output: content.clone(),
+        warnings: 0,
+        log: content,
+    })
+}
+
+// ── gcc-rv64（qemu-user：riscv64 静态 ELF → qemu-riscv64）─────────
+fn run_gcc_rv64(dir: &Path, bdir: &Path, timeout_s: u64) -> Result<RunOutput, String> {
+    let cs = files_with_ext(dir, "c");
+    if cs.is_empty() {
+        return Err("无 .c 源文件".into());
+    }
+    let cc = toolchain::first_available(&["riscv64-linux-gnu-gcc", "riscv64-unknown-elf-gcc"])
+        .ok_or("找不到 riscv64 gcc")?;
+    let bin = bdir.join("a.rv64");
+    let mut cmd = Command::new(cc);
+    cmd.args(["-Wall", "-Wextra", "-O2", "-static", "-o"]).arg(&bin);
+    for c in &cs {
+        cmd.arg(c);
+    }
+    let comp = cmd.output().map_err(|e| format!("{} 执行失败: {}", cc, e))?;
+    let cerr = String::from_utf8_lossy(&comp.stderr).into_owned();
+    if !comp.status.success() {
+        return Err(format!("编译失败:\n{}", cerr));
+    }
+    let warnings = cerr.matches("warning:").count();
+    let run = exec_run("qemu-riscv64", &[bin.into_os_string()], bdir, timeout_s)?;
+    let s = combine(&run);
+    Ok(RunOutput {
+        output: s.clone(),
+        warnings,
+        log: format!("{cerr}{s}"),
+    })
 }
 
 // ── iverilog ─────────────────────────────────────────────────────

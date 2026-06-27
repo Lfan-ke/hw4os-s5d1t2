@@ -1,0 +1,76 @@
+# 17-bsp 可视化声明 —— 驱动 labctl TUI 拓扑/数据流。
+# 母题：firmware 递平面图（DTB）→ BSP 翻译成 BoardConfig → 通用 kmain 点亮设备。
+
+[[node]]
+id = "dtb"
+label = "DTB / 板级配置表（平面图）"
+[[node]]
+id = "bsp"
+label = "bsp_probe / parse_dt（BSP 翻译层）"
+[[node]]
+id = "cfg"
+label = "BoardConfig{uart_base, clk_hz}"
+[[node]]
+id = "bind"
+label = "driver_bind（compatible 匹配）"
+[[node]]
+id = "kmain"
+label = "通用 kmain（只认 cfg）"
+[[node]]
+id = "bus"
+label = "MMIO 总线 / 地址译码器"
+
+[[edge]]
+from = "dtb"
+to   = "bsp"
+[[edge]]
+from = "bsp"
+to   = "cfg"
+[[edge]]
+from = "dtb"
+to   = "bind"
+[[edge]]
+from = "cfg"
+to   = "kmain"
+[[edge]]
+from = "kmain"
+to   = "bus"
+
+# 数据流场景（TUI 动画 / diagram 高亮）
+[[flow]]
+name = "probe-hardcoded"
+path = ["bsp", "cfg", "kmain", "bus"]
+note = "第 1 步 · 硬编码 BSP 表：board_id → 地址 → 点亮 UART"
+[[flow]]
+name = "parse-dt"
+path = ["dtb", "bsp", "cfg", "kmain", "bus"]
+note = "第 2 步 · 读设备树：同一 kmain 喂 A.dtb/B.dtb 双双点亮"
+[[flow]]
+name = "driver-bind"
+path = ["dtb", "bind"]
+note = "第 3 步 · compatible 字符串匹配：节点 × 驱动表"
+[[flow]]
+name = "os-upgrade"
+path = ["dtb", "bsp", "cfg", "kmain", "bus"]
+note = "第 4 步 · v2 内核吃未改动的 v1 DT：缺失属性兜底、未知属性跳过"
+
+# 接口（配置/端口）面板
+[[iface]]
+name = "board_id"
+bits = "u32"
+note = "0=板 A 1=板 B"
+[[iface]]
+name = "uart_base"
+bits = "u32"
+note = "板 A=0x1000_0000 · 板 B=0x1002_0000"
+[[iface]]
+name = "compatible"
+bits = "str"
+note = "vlab,uart · vlab,timer（驱动按名片认领）"
+[[iface]]
+name = "clock-frequency"
+bits = "u32"
+note = "DT 可选属性；v2 缺失则默认 10_000_000"
+
+[wave]
+signals = ["addr", "sel_a", "sel_b", "rdata_a", "rdata_b"]

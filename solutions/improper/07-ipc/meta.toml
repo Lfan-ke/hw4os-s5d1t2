@@ -1,0 +1,62 @@
+id      = "07-ipc"
+title   = "进程通信 · 原子操作、锁与「A 等 B 置位」的完成握手（软硬同构）"
+track   = "improper"
+require = 1               # 任一变体过即完成；多过计辅助分
+env     = "host"          # 软件变体纯逻辑，host 直接跑
+weight  = 1
+
+# ── 四条实现路径（同一套 IPC 原语的软/硬不同写法）+ 思考题 ──────────
+[[variant]]
+id    = "sw-rust"
+axis  = "software"
+lang  = "rust"
+dir   = "sw/rust"
+build = "cargo"
+
+[[variant]]
+id    = "sw-c"
+axis  = "software"
+lang  = "c"
+dir   = "sw/c"
+build = "gcc-host"
+
+[[variant]]
+id        = "hw-v"
+axis      = "hardware"
+lang      = "verilog"
+dir       = "hw/v"
+build     = "iverilog"
+warn_gate = true
+
+[[variant]]
+id        = "hw-bsv"
+axis      = "hardware"
+lang      = "bsv"
+dir       = "hw/bsv"
+build     = "bsc"
+warn_gate = true
+top       = "mkTbIpc"
+entry     = "IpcProc.bsv"
+
+[[variant]]
+id    = "essay"
+axis  = "essay"
+lang  = "md"
+dir   = "essay"
+build = "essay"
+
+# ── 统一判题口径（软/硬四变体对外行为一致）────────────────────────
+[judge]
+expect    = ["HANDSHAKE_PASS", "TAS_PASS", "MUTEX_PASS", "SEM_PASS", "ORCH_PASS", "ALL_PASS"]
+forbid    = ["FAIL", "panic", "ERROR"]
+timeout_s = 30
+
+# ── 渐进提示 ──────────────────────────────────────────────────────
+[[hint]]
+text = "先做握手：b_finish 置 DONE 位并把 result 放进低 16 位；a_poll 只在 DONE=1 时 ready，并取低 16 位。EARLY_FAIL 就是 DONE=0 时你却报了 ready。"
+[[hint]]
+text = "tas 的新值恒为 1，got=(旧值==0)；try_lock 调 tas 把新值写回锁、返回 got。占用中的锁再 tas 必然 got=false——这正是互斥不被双进入的关键。"
+[[hint]]
+text = "信号量 down 恒减一、ok=(count'>=0)；up 恒加一。判题只在 ok=true 时更新 count，所以阻塞式/自旋式两种写法都能过。"
+[[hint]]
+text = "编排：a_step 相位 0 按门铃(置 START)→相位 1；相位 1 见 DONE 才算 post=result*2 并清 DONE。b_step 见 START 就清 START、置 DONE、写 RESULT=job。软硬两路对同一向量逐位一致。"

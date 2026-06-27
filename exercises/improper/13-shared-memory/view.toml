@@ -1,0 +1,68 @@
+# 13-shared-memory 可视化声明 —— 驱动 labctl TUI 拓扑/数据流。
+# 母题：同一份物理字节 + 一套不踩脚的协调协议。
+
+[[node]]
+id = "va_a"
+label = "VA(进程A) / 设备侧"
+[[node]]
+id = "va_b"
+label = "VA(进程B) / OS 侧"
+[[node]]
+id = "pt"
+label = "页表别名 (两个 PTE 同一 PPN)"
+[[node]]
+id = "phys"
+label = "物理字节 / MMIO 共享区"
+[[node]]
+id = "proto"
+label = "协调协议 (ready 标志 / head·tail)"
+
+[[edge]]
+from = "va_a"
+to   = "pt"
+[[edge]]
+from = "va_b"
+to   = "pt"
+[[edge]]
+from = "pt"
+to   = "phys"
+[[edge]]
+from = "proto"
+to   = "phys"
+
+[[flow]]
+name = "alias"
+path = ["va_a", "pt", "phys", "va_b"]
+note = "页表别名：va_a 写、va_b 立刻读到（同一 PPN）"
+[[flow]]
+name = "mmap-shared"
+path = ["va_a", "pt", "phys", "va_b"]
+note = "MAP_SHARED：同 key 复用同一物理帧；MAP_PRIVATE：各自零页"
+[[flow]]
+name = "mailbox"
+path = ["va_a", "proto", "phys", "va_b"]
+note = "握手：写在前、置 ready 在后；消费者轮询 ready 再读"
+[[flow]]
+name = "mmio-ring"
+path = ["va_a", "proto", "phys", "va_b"]
+note = "设备 push 抬 tail；OS 读 avail/数据后抬 head（环绕）"
+
+[[iface]]
+name = "PTE"
+bits = "valid:1 ppn:n"
+note = "页表项：别名 = 两个 PTE 同一 PPN"
+[[iface]]
+name = "flags"
+bits = "0=SHARED 1=PRIVATE"
+note = "mmap 语义：复用命名段 vs 匿名私有帧"
+[[iface]]
+name = "ready"
+bits = "1"
+note = "邮箱握手标志（生产者最后置位）"
+[[iface]]
+name = "head/tail/count"
+bits = "ring"
+note = "共享环指针：count 法判空/满，%CAP 环绕"
+
+[wave]
+signals = ["clk", "rst", "push_en", "push_data", "pop_en", "pop_data", "avail", "full", "count"]

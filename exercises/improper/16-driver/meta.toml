@@ -1,0 +1,65 @@
+id      = "16-driver"
+title   = "驱动入门 · 裸机 MMIO → 设备树匹配 → 可插拔注册 → 平台总线"
+track   = "improper"
+require = 1               # 任一变体过即完成；多过计辅助分
+env     = "host"          # 软件纯逻辑 host 直接跑；硬件走 host 上的 iverilog/bsc 仿真
+weight  = 1
+
+# ── 软件双语言：一节贯通 16.1→16.4（同一驱动框架的两种写法）──────────
+[[variant]]
+id    = "sw-rust"
+axis  = "software"
+lang  = "rust"
+dir   = "sw/rust"
+build = "cargo"
+
+[[variant]]
+id    = "sw-c"
+axis  = "software"
+lang  = "c"
+dir   = "sw/c"
+build = "gcc-host"
+
+# ── 硬件双实现：16.1 设备侧（与软件驱动同一寄存器契约的两面）──────────
+[[variant]]
+id        = "hw-v"
+axis      = "hardware"
+lang      = "verilog"
+dir       = "hw/v"
+build     = "iverilog"
+warn_gate = true          # 0 warning 才算过
+
+[[variant]]
+id        = "hw-bsv"
+axis      = "hardware"
+lang      = "bsv"
+dir       = "hw/bsv"
+build     = "bsc"
+warn_gate = true
+top       = "mkTbMmio"
+entry     = "MmioDev.bsv"
+
+# ── 思考题（关键字判，独立辅助账）──────────────────────────────────
+[[variant]]
+id    = "essay"
+axis  = "software"
+lang  = "essay"
+dir   = "essay"
+build = "essay"
+
+# ── 统一判题口径：软/硬变体都打印 MMIO_PASS 与 ALL_PASS ──────────────
+# 软件路径另打印 DTB/MATCH/DERIVE/PLUG/BIND/USER/BUS_PASS（16.2–16.4 细分通过点）；
+# 硬件路径另打印 DEV_PASS（设备侧响应正确）。共同子串作统一 expect。
+[judge]
+expect    = ["MMIO_PASS", "ALL_PASS"]
+forbid    = ["FAIL", "panic", "ERROR"]
+timeout_s = 60
+
+[[hint]]
+text = "16.1：probe = volatile 读 ID 寄存器与 magic 0x426C6E6B 比对；握手 = 写 CTRL 使能位 → 轮询 STATUS.ready → 逐字节写 DATA。硬件变体反过来：你写设备的读多路器与时序更新，tb 当参考驱动。"
+[[hint]]
+text = "16.2：先把 board.dts 两个节点的 compatible/reg 填对（acme,blink / acme,gpio）；解析主循环对每个节点的 compatible 在驱动表里逐条精确 strcmp，命中 probe、未知跳过。隐藏向量会打乱节点顺序——按名片匹配就天然顺序无关。"
+[[hint]]
+text = "16.3：框架已经会遍历“登记集合”得到驱动表；你只需给第三个驱动加一行注册（Rust 在 all_drivers 追加 driver! 项；C 加一行 REGISTER_DRIVER 链接段标注）。框架其余代码一行不改，acme,blink-v2 就被自动发现。"
+[[hint]]
+text = "16.4：总线枚举 dtb 设备列表 → 按 compatible match 驱动 → bind(调 probe 建实例) → 登记成 /dev/<name><idx>；用户态 open/read/write 只转发到设备 FileLike 的 read/write，不直接碰 MMIO。"

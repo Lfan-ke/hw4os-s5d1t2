@@ -1,0 +1,45 @@
+id      = "03-compile-link"
+title   = "编译链接 · 手写链接脚本、段布局与 A→B→C 串接执行"
+track   = "improper"
+require = 1               # C/Rust 任一过即过；essay 独立计辅助分
+env     = "host"          # 全程软件建模链接器，host 直接跑
+weight  = 1
+
+# ── 软件双语言路径（同一链接建模逻辑的两种写法）──────────────────
+[[variant]]
+id    = "sw-rust"
+axis  = "software"
+lang  = "rust"
+dir   = "sw/rust"
+build = "cargo"
+
+[[variant]]
+id    = "sw-c"
+axis  = "software"
+lang  = "c"
+dir   = "sw/c"
+build = "gcc-host"
+
+# ── essay 思考题（关键字判，独立辅助账，不挤占软件路径）──────────
+[[variant]]
+id    = "essay"
+axis  = "software"
+lang  = "essay"
+dir   = "essay"
+build = "essay"
+
+# ── 统一判题口径（软件变体逐题 *_PASS 累计，全过 ALL_PASS）─────────
+[judge]
+expect    = ["LAYOUT_PASS", "SECTION_PASS", "ELF_PASS", "BIN_PASS", "CHAIN_PASS", "ALL_PASS"]
+forbid    = ["FAIL", "panic", "ERROR"]
+timeout_s = 30
+
+# ── 渐进提示 ──────────────────────────────────────────────────────
+[[hint]]
+text = 'E1 layout：把链接器想成一个"光标"——starts[0]=base，之后每段起点 = 上一段起点 + 上一段长度，连续摆放即得 text<rodata<data<bss。clear_bss 直接返回/写入全 0 缓冲。'
+[[hint]]
+text = "E2 .config：__config_start 要 4K 对齐——调用 align_up(prev_end, 0x1000)；make_config 填约定字段 magic=0x00C0FFEE, version=1, nslots=8, flags=0b101。"
+[[hint]]
+text = "E3 ELF/BIN：魔数是前 4 字节 7F 45 4C 46；e_entry 在偏移 24、e_phoff 在偏移 32，各取 8 字节小端。纯二进制要让 link 基址 == load 地址(0x80200000)，入口偏移 = entry - base 才会是 0。"
+[[hint]]
+text = "E4 串接：runner 只按 .apps 表里的顺序逐个调用 app（函数指针），把返回标签收集起来即可——顺序由表决定，不由 app 自己决定。"

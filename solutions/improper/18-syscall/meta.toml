@@ -1,0 +1,67 @@
+id      = "18-syscall"
+title   = "系统调用 · 从 MCU 中断向量表到 MPU 系统调用（向量分发 → trap 帧 → ABI → 真实 ecall）"
+track   = "improper"
+require = 1               # 任一变体过即完成；多过计辅助分
+env     = "host"          # sw-rust 走 host；sw-c 走 gcc-rv64/qemu-user（真实 RV64 ecall）
+weight  = 1
+
+# ── 五条实现路径 ──────────────────────────────────────────────────
+# 软件(rust/c) 覆盖 S1 向量分发 + S2 trap 上下文 + S3 syscall ABI + S4 真实 ecall 往返；
+# 硬件(v/bsv) 是 S1「软硬同构」锚点：同一 dispatch 公式的组合电路；
+# essay 答 S5 思考题（MCU 裸中断 → MPU 受控 syscall 的演化线）。
+[[variant]]
+id    = "sw-rust"
+axis  = "software"
+lang  = "rust"
+dir   = "sw/rust"
+build = "cargo"
+
+[[variant]]
+id    = "sw-c"
+axis  = "software"
+lang  = "c"
+dir   = "sw/c"
+build = "gcc-rv64"        # 编成 RV64 静态 ELF，qemu-user 运行；S4 走真实 `ecall`
+
+[[variant]]
+id        = "hw-v"
+axis      = "hardware"
+lang      = "verilog"
+dir       = "hw/v"
+build     = "iverilog"
+warn_gate = true          # 0 warning 才算过
+
+[[variant]]
+id        = "hw-bsv"
+axis      = "hardware"
+lang      = "bsv"
+dir       = "hw/bsv"
+build     = "bsc"
+warn_gate = true
+top       = "mkTbVec"
+entry     = "VecDispatch.bsv"
+
+[[variant]]
+id    = "essay"
+axis  = "essay"
+lang  = "md"
+dir   = "essay"
+build = "essay"
+
+# ── 统一判题口径 ──────────────────────────────────────────────────
+# 五变体都打印 S1 组 + ALL_PASS；软件再额外打 S2/S3/S4 组（ALL_PASS 受其全过门控，
+# 任一子实验失败即印 *_FAIL → 命中 forbid）。
+[judge]
+expect    = ["DIRECT_PASS", "VECTORED_PASS", "DISPATCH_PASS", "S1_PASS", "ALL_PASS"]
+forbid    = ["FAIL", "panic", "ERROR"]
+timeout_s = 60
+
+# ── 渐进提示 ──────────────────────────────────────────────────────
+[[hint]]
+text = "S1 向量分发：handler_pc = mode ? base + (cause<<2) : base；accept = trap_req。软件用给好的 vector[16] 表查 base+4*cause，硬件就是一个移位+加法+二选一的组合 mux。"
+[[hint]]
+text = "S2 trap 帧：ctx_save 把 32 个 GPR + sepc + sstatus 整组拷进快照；ctx_advance 把 handler 结果写进 a0(=x10)，再 sepc+=4 跳过 ecall。判题校验『a0 对 + 其余 31 个寄存器逐位不变 + sepc 正好 +4』。"
+[[hint]]
+text = "S3 syscall ABI：按 a7 分发 64=write / 93=exit / 172=getpid，结果写回 a0；未知号返回 -ENOSYS(-38)。sys_write 把 mem[a1..a1+a2] 回显进 capture 并返回字节数。"
+[[hint]]
+text = "S4 真实陷入：填裸 syscall 包装。Rust(host) 用 `syscall` 指令 rax=1 做 write；C(RV64) 用 `ecall` a7=64 做 write，把 HELLO_SYSCALL 打到 fd=1，返回值=写出字节数即证明控制流安全往返。"

@@ -1,0 +1,60 @@
+# 07-ipc 可视化声明 —— 共享控制字 + 「A 等 B 置位」握手协议。
+# 软件是几行 if-else，硬件是同一字段的几个组合块；逻辑逐位一致。
+
+[[node]]
+id = "ctrl"
+label = "控制字 [31]BUSY [30]DONE [29]LOCK [28]START [15:0]RESULT"
+[[node]]
+id = "procB"
+label = "进程 B（干活、置 DONE）"
+[[node]]
+id = "procA"
+label = "进程 A（死盯黑板、见 DONE 才动）"
+[[node]]
+id = "alu"
+label = "IPC ALU（8 个纯原语）"
+
+[[edge]]
+from = "procB"
+to   = "ctrl"
+[[edge]]
+from = "ctrl"
+to   = "procA"
+[[edge]]
+from = "alu"
+to   = "ctrl"
+
+# 数据流场景（TUI 动画 / diagram 高亮）
+[[flow]]
+name = "handshake"
+path = ["procB", "ctrl", "procA"]
+note = "握手：B 先写 RESULT 再置 DONE；A 见 DONE 才取数（release-acquire）"
+[[flow]]
+name = "tas-mutex"
+path = ["procA", "alu", "ctrl"]
+note = "test_and_set：旧值为 0 才抢到；占用中再 tas 必失败（互斥）"
+[[flow]]
+name = "orchestrate"
+path = ["procA", "ctrl", "procB", "ctrl", "procA"]
+note = "编排：A 按门铃(START)→B 算并置 DONE→A 做后续 post=result*2"
+
+# 接口（控制字字段 / ALU opcode）面板
+[[iface]]
+name = "DONE"
+bits = "[30]"
+note = "完成位：B 置 1 / A 采样（↔ rcore Condvar、xv6 wakeup、设备 done bit）"
+[[iface]]
+name = "START"
+bits = "[28]"
+note = "门铃：A 置 1 通知 B 开工"
+[[iface]]
+name = "RESULT"
+bits = "[15:0]"
+note = "B 算出的结果；必须先于 DONE 写入"
+[[iface]]
+name = "op"
+bits = "[3:0]"
+note = "0 BFINISH 1 APOLL 2 TAS 3 UNLOCK 4 DOWN 5 UP 6 ASTEP 7 BSTEP"
+
+[wave]
+signals = ["clk", "op", "a", "b", "y"]

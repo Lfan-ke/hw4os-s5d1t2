@@ -1,0 +1,63 @@
+# 04-thread 可视化声明 —— 驱动 labctl TUI 拓扑/数据流。
+# 主题：进程(PCB)=资源容器；线程(TCB)=一把寄存器+指向 PCB 的指针。
+
+[[node]]
+id = "proc"
+label = "Process(PCB)：mem / fd / sem 共享资源"
+[[node]]
+id = "tcb0"
+label = "TCB#1：ctx(寄存器) + →Process"
+[[node]]
+id = "tcb1"
+label = "TCB#2：ctx(寄存器) + →Process"
+[[node]]
+id = "vcpu"
+label = "虚拟 CPU（一套寄存器现场）"
+[[node]]
+id = "ready"
+label = "就绪队列（调度 TCB）"
+
+[[edge]]
+from = "tcb0"
+to   = "proc"
+[[edge]]
+from = "tcb1"
+to   = "proc"
+[[edge]]
+from = "ready"
+to   = "vcpu"
+[[edge]]
+from = "vcpu"
+to   = "tcb0"
+[[edge]]
+from = "vcpu"
+to   = "tcb1"
+
+[[flow]]
+name = "ctx-switch"
+path = ["vcpu", "tcb0", "tcb1"]
+note = "04-1：ctx_save(当前→cur) + ctx_restore(next→当前)，整组寄存器一拍迁移"
+[[flow]]
+name = "share-resource"
+path = ["tcb0", "proc", "tcb1"]
+note = "04-2：两 TCB 指向同一 Process，写 fd/mem 互相可见"
+[[flow]]
+name = "round-robin"
+path = ["ready", "vcpu", "tcb0", "tcb1"]
+note = "04-2：调度器轮流 switch 多个 TCB，各自 sepc 独立推进"
+
+[[iface]]
+name = "Context"
+bits = "gpr[31] + sepc + sstatus + sp"
+note = "一个上下文 = CSR + GPRs = 一个执行身份"
+[[iface]]
+name = "active"
+bits = "[0:0]"
+note = "硬件双上下文：一拍选中哪套影子寄存器组（=哪个硬件线程）"
+[[iface]]
+name = "SharedRes"
+bits = "mem / fd_table / sem"
+note = "全线程共享的进程资源（地址空间/fd 表/信号量占位）"
+
+[wave]
+signals = ["clk", "active", "we", "raddr", "rdata", "sum"]

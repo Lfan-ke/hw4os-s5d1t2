@@ -23,6 +23,7 @@ pub fn first_available<'a>(cmds: &[&'a str]) -> Option<&'a str> {
 /// 某 build 关键字所需工具链是否齐备。
 pub fn build_available(build: &str) -> bool {
     match build {
+        "essay" => true, // 思考题：读答案文件，无需工具链
         "cargo" => which("cargo"),
         "gcc-host" => which("gcc") || which("cc"),
         "gcc-rv64" => {
@@ -32,6 +33,9 @@ pub fn build_available(build: &str) -> bool {
         "iverilog" => which("iverilog") && which("vvp"),
         "verilator" => which("verilator"),
         "bsc" => which("bsc"),
+        "qemu-virt" => {
+            which("make") && which("qemu-system-riscv64") && which("riscv64-unknown-elf-gcc")
+        }
         _ => false,
     }
 }

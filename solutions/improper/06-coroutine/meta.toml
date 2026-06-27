@@ -1,0 +1,49 @@
+id      = "06-coroutine"
+title   = "无栈协程 · 被 poll 出来的「状态机」绿色线程（手写 → 执行器 → 唤醒 → async）"
+track   = "improper"
+require = 1               # 任一变体过即完成；多过计辅助分
+env     = "host"          # 纯逻辑，host 直接跑
+weight  = 1
+
+# ── 三条实现路径（同一「无栈 poll」心智模型的不同写法）──────────────
+[[variant]]
+id    = "sw-rust"
+axis  = "software"
+lang  = "rust"
+dir   = "sw/rust"
+build = "cargo"
+
+[[variant]]
+id    = "sw-c"
+axis  = "software"
+lang  = "c"
+dir   = "sw/c"
+build = "gcc-host"
+
+[[variant]]
+id    = "essay"
+axis  = "essay"
+lang  = "md"
+dir   = "essay"
+build = "essay"
+
+# ── 统一判题口径 ──────────────────────────────────────────────────
+# 必修判据（rust / c 都产出；essay 以关键字/锚点命中）：
+#   06.1 → YIELD_PASS / STATEMACHINE_PASS
+#   06.2 → EXEC_PASS / BATCH_PASS
+#   06.3 → WAKER_PASS
+# 辅助分（不入 expect，多出不影响判定）：rust 额外 ASYNC_PASS / JOIN_PASS；c 额外 LIB_PASS。
+[judge]
+expect    = ["YIELD_PASS", "STATEMACHINE_PASS", "EXEC_PASS", "BATCH_PASS", "WAKER_PASS", "ALL_PASS"]
+forbid    = ["FAIL", "panic", "ERROR"]
+timeout_s = 30
+
+# ── 渐进提示 ──────────────────────────────────────────────────────
+[[hint]]
+text = "06.1 co_poll/poll：状态号就是 i。i<count 时让出 start+i*step 并把它累加进 acc，i+=1，返回 Pending(v)；i==count 时置 done、返回 Ready(seed+acc)。关键：acc/i 必须留在结构体里（跨让出点存活）。"
+[[hint]]
+text = "06.2 exec_run：round-robin 反复扫所有任务，未完成的各 poll 一次；Pending 把值塞进 trace，Ready 把终值塞进 finals 并把它标记完成。全程不让出的任务（count=0）首 poll 即 Ready → trace 为空、退化成顺序批处理。"
+[[hint]]
+text = "06.3 reactor_run：就绪队列初始装入全部任务（首次 poll，不计唤醒）；poll 一个，polls++；若 Pending 则 wakes++ 并把它重新入队（reactor 登记一次唤醒）；Ready 就不再入队。这样总 poll = 任务数 + 唤醒数，绝不忙等。"
+[[hint]]
+text = "06.4（rust）stepper_async：把 06.1 那段顺序代码原样写成 while 循环，让出点换成 yield_now().await。编译器会替你把 acc/i 掰进生成的 Future——和你手写的 enum 状态机同构。C 没有 async/await，只能停在函数指针「状态机库」（lib_run），其余见 essay。"

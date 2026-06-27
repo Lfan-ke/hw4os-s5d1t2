@@ -1,0 +1,44 @@
+id      = "05-fiber"
+title   = "纤程（有栈协程）· 手写上下文切换 → 极简运行时 → 批处理顿悟 → 类库设施"
+track   = "improper"
+require = 1               # C/Rust 任一过即过；多过计辅助分
+env     = "qemu-user"     # C 走 RV64 真汇编(qemu)；Rust 走 host x86_64(cargo)
+weight  = 1
+
+# ── 软件双语言主线（纯用户态机制，不设必修硬件变体）+ essay 思考题 ──
+[[variant]]
+id    = "sw-rust"
+axis  = "software"
+lang  = "rust"
+dir   = "sw/rust"
+build = "cargo"           # host x86_64：global_asm 写 callee-saved 切换
+
+[[variant]]
+id    = "sw-c"
+axis  = "software"
+lang  = "c"
+dir   = "sw/c"
+build = "gcc-rv64"        # qemu-user：RV64 真汇编 sd/ld（ra+sp+s0~s11）
+
+[[variant]]
+id    = "essay"
+axis  = "software"
+lang  = "essay"
+dir   = "essay"
+build = "essay"
+
+# ── 五阶段统一判题口径 ──
+[judge]
+expect    = ["CTXSW_PASS", "SCHED_PASS", "SEQ_PASS", "INTERLEAVE_PASS", "LIB_PASS", "ALL_PASS"]
+forbid    = ["FAIL", "panic", "ERROR"]
+timeout_s = 60
+
+# ── 渐进提示 ──
+[[hint]]
+text = "switch_ctx 只换 callee-saved 子集：RV64 把 ra/sp/s0–s11 用 sd 存进 *old、从 *new 用 ld 读回、ret 跳走；x86_64 则把 rbp/rbx/r12–r15 push 到当前栈、换 rsp、pop 回来、ret。caller-saved 编译器已在每个 call 处替你溢出，不必存。"
+[[hint]]
+text = "新纤程的‘首次跳板’：把它的 ctx.ra(RV64) 指向 trampoline、ctx.sp 指向新栈顶；第一次被 switch 进来时一个 ret 就落进 trampoline，再由 trampoline 调用任务体。x86_64 等价做法是在新栈顶预埋 trampoline 返回地址 + 6 个 0 占位寄存器槽。"
+[[hint]]
+text = "yield_now()：把自己标记为 READY，再 switch_ctx(自己, 调度器)；调度器 run() 循环用就绪队列做 round-robin，纤程让出后重新入队，DONE 则不再入队。"
+[[hint]]
+text = "批处理顿悟：任务体内不写 yield → 一个跑完才轮下一个(顺序)；在 I/O/阻塞处插一句 yield_now() → 三个任务交错。类库阶段用 Rust std(线程+channel 当有栈协程) 或 C ucontext(makecontext/swapcontext) 复现同一序列。"

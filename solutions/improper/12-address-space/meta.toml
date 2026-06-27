@@ -1,0 +1,44 @@
+id      = "12-address-space"
+title   = "地址空间 · 软件 MMU 与「偷梁换柱」的稀疏映射（E1→E5）"
+track   = "improper"
+require = 1               # 任一变体把全部 *_PASS 跑齐即完成；多过计辅助分
+env     = "host"          # 纯软件建模（软件页表数组冒充物理内存），host 直接跑
+weight  = 1
+
+# ── 五段递进折叠为一个程序：E1 稀疏映射 / E2 直接映射区 / E3 SMP 多槽 / E4 两级 / E5 SV39 ──
+[[variant]]
+id    = "sw-rust"
+axis  = "software"
+lang  = "rust"
+dir   = "sw/rust"
+build = "cargo"
+
+[[variant]]
+id    = "sw-c"
+axis  = "software"
+lang  = "c"
+dir   = "sw/c"
+build = "gcc-host"
+
+[[variant]]
+id    = "essay"
+axis  = "essay"
+lang  = "md"
+dir   = "essay"
+build = "essay"
+
+# ── 统一判题口径（软件双变体逐段点亮，essay 命中评分锚点）──────────
+[judge]
+expect    = ["SPARSE_PASS", "DIRECT_PASS", "EXCHANGE_PASS", "SLOTS_PASS", "SMP_PASS", "WALK_PASS", "TWOLEVEL_PASS", "SV39_PASS", "ALL_PASS"]
+forbid    = ["FAIL", "panic", "ERROR"]
+timeout_s = 30
+
+# ── 渐进提示 ──────────────────────────────────────────────────────
+[[hint]]
+text = "E1：translate 拆 vpn=va>>12、off=va&0xfff，在扁平表里找 vpn；map1 追加一条 (vpn,ppn)。store 缺页时 harness 已替你 demand-alloc 一帧再 map，你只管把 translate/map1 写对，实占帧数自然 ≤3。"
+[[hint]]
+text = "E2：route 先判 in_direct(va) → 直接 return va（identity，拍卖行/跨核共识）；否则复用 E1 的 translate，miss 时 alloc+map1。私有区隔离靠的是 A、B 各自的页表把同一 va 映到不同 ppn。"
+[[hint]]
+text = "E3：slot_addr(h)=SMP_BASE+h*SLOT（每核错开一个槽，互不写同一地址 → 无锁）；reduce_slots 把各槽求和。E4：map2 按需建二级表（pd[l1]<0 才新建），walk2 走 pde→pte→pa；只建用到的少量表。"
+[[hint]]
+text = "E5：sv39_walk 从根表 tabs[0] 起，按 vpn2→vpn1→vpn0 逐级取 PTE；V==0 即 fault；PTE 带 R/W/X 即叶子（ppn=pte>>10，pa=ppn<<12|off，flags=pte&0x1f），否则 t=pte>>10 下探。"

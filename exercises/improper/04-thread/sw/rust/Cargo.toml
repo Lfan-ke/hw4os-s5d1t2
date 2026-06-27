@@ -1,0 +1,8 @@
+[package]
+name = "thread-sw-rust"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "thread"
+path = "src/main.rs"

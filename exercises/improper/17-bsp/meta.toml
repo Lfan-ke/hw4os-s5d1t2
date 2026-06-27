@@ -1,0 +1,71 @@
+id      = "17-bsp"
+title   = "板级入门 · BSP 与设备树：让同一个 OS 跑遍多块板（探测→读 DT→绑定→升级）"
+track   = "improper"
+require = 1               # 任一变体过即完成；软/硬/语言多过计辅助分
+env     = "host"          # 软件为纯逻辑（内存数组模拟 MMIO 总线），host 直接跑
+weight  = 1
+
+# ── 五条实现路径 ──────────────────────────────────────────────────
+# 软件变体（必修核心）走 bsp_probe → parse_dt → driver_bind → parse_dt_v2 完整流水线。
+# 硬件变体实现第 1 步的"板级地址译码模型"（与软件 bsp_probe/MMIO 总线软硬同构）。
+# essay 变体为 BSP/设备树思考题。
+[[variant]]
+id    = "sw-rust"
+axis  = "software"
+lang  = "rust"
+dir   = "sw/rust"
+build = "cargo"
+
+[[variant]]
+id    = "sw-c"
+axis  = "software"
+lang  = "c"
+dir   = "sw/c"
+build = "gcc-host"
+
+[[variant]]
+id        = "hw-v"
+axis      = "hardware"
+lang      = "verilog"
+dir       = "hw/v"
+build     = "iverilog"
+warn_gate = true          # 0 warning 才算过
+
+[[variant]]
+id        = "hw-bsv"
+axis      = "hardware"
+lang      = "bsv"
+dir       = "hw/bsv"
+build     = "bsc"
+warn_gate = true
+top       = "mkTbBsp"
+entry     = "BspDecode.bsv"
+
+[[variant]]
+id    = "essay"
+axis  = "essay"
+lang  = "md"
+dir   = "essay"
+build = "essay"
+
+# ── 统一判题口径（以 ALL_PASS 为统一闸门，各变体异构但同闸）──────
+# 软件逐段子串：PROBE_A_PASS / PROBE_B_PASS / DT_A_PASS / DT_B_PASS /
+#   BIND_uart_PASS / BIND_timer_PASS / BIND_PASS / UPGRADE_PASS，全过后 ALL_PASS。
+# 硬件逐段子串：DECODE_A_PASS / DECODE_B_PASS，全过后 ALL_PASS。
+# essay：作答完毕标志含 ALL_PASS。
+[judge]
+expect    = ["ALL_PASS"]
+forbid    = ["FAIL", "panic", "ERROR"]
+timeout_s = 30
+
+# ── 渐进提示 ──────────────────────────────────────────────────────
+[[hint]]
+text = "1) bsp_probe：board 0 → {A_UART_BASE, A_CLK_HZ}，board 1 → {B_UART_BASE, B_CLK_HZ}。kmain 只认 cfg.uart_base，base 给错就写到窗口外（faults>0）判 FAIL。"
+[[hint]]
+text = "2) parse_dt：遍历 blob，compatible==\"vlab,uart\" 的节点取 reg_base→uart_base、props 里 clock-frequency→clk_hz。同一 parse_dt+kmain 喂 A.dtb/B.dtb 双双点亮。"
+[[hint]]
+text = "3) driver_bind：每个节点 × 驱动表逐条 strcmp(compatible)，相等则 drv.bound++、total++、break。total==节点数 即无未匹配节点 → BIND_PASS。"
+[[hint]]
+text = "4) parse_dt_v2：clk_hz 初值置 DEFAULT_CLK_HZ，只有扫到 clock-frequency 才覆盖；遇到不认识的属性（如 vlab,unknown-feature）跳过、别报错——这样吃未改动的老 A.dtb 仍 UPGRADE_PASS。"
+[[hint]]
+text = "硬件 bsp_decode：sel=(addr>=BASE)&&(addr<BASE+SIZE)；rdata=sel?(MAGIC|(addr-BASE)):0。always@(*) 每条分支都给 sel/rdata 全赋值防 latch，且至少读 addr。"

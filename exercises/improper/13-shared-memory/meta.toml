@@ -1,0 +1,70 @@
+id      = "13-shared-memory"
+title   = "共享内存 · 一份物理字节的两个主人（进程↔进程 · 设备↔OS）"
+track   = "improper"
+require = 1               # 任一变体过即完成；多过计辅助分
+env     = "host"          # 软件变体纯逻辑，host 直接跑；硬件走 iverilog/bsc
+weight  = 1
+
+# ── 五条实现路径 ────────────────────────────────────────────────
+# 软件(rust/c) 覆盖子实验 1-4：页表别名 / mmap 共享vs私有 / 邮箱握手 / 共享环。
+# 硬件(v/bsv) 覆盖子实验 4：定长 ring mailbox（设备↔OS 的 MMIO 共享环）。
+# essay 思考题。
+# 每个变体最终都打印 RING_PASS + MMIO_SHM_PASS + ALL_PASS（软件还会逐段打印
+# ALIAS_/ISOLATED_/SHARED_/PRIVATE_/MAILBOX_PASS，全部通过才打印 ALL_PASS）。
+
+[[variant]]
+id        = "sw-rust"
+axis      = "software"
+lang      = "rust"
+dir       = "sw/rust"
+build     = "cargo"
+
+[[variant]]
+id        = "sw-c"
+axis      = "software"
+lang      = "c"
+dir       = "sw/c"
+build     = "gcc-host"
+
+[[variant]]
+id        = "hw-v"
+axis      = "hardware"
+lang      = "verilog"
+dir       = "hw/v"
+build     = "iverilog"
+warn_gate = true          # 0 warning 才算过
+
+[[variant]]
+id        = "hw-bsv"
+axis      = "hardware"
+lang      = "bsv"
+dir       = "hw/bsv"
+build     = "bsc"
+warn_gate = true
+top       = "mkTbShareMem"
+entry     = "ShareMem.bsv"
+
+[[variant]]
+id        = "essay"
+axis      = "essay"
+lang      = "md"
+dir       = "essay"
+build     = "essay"
+
+# ── 统一判题口径 ────────────────────────────────────────────────
+# RING_PASS / MMIO_SHM_PASS 为软硬同构的共享环（子实验 4），所有路径共有；
+# ALL_PASS 兜底（仅当本变体全部子段通过才打印）。
+[judge]
+expect    = ["RING_PASS", "MMIO_SHM_PASS", "ALL_PASS"]
+forbid    = ["FAIL", "panic", "ERROR"]
+timeout_s = 30
+
+# ── 渐进提示 ────────────────────────────────────────────────────
+[[hint]]
+text = "页表别名：map(pt,vpn,ppn) 就是 pt[vpn]={valid:1, ppn}；让 vpn_a、vpn_b 都映射到同一个 ppn，写 va_a 即可经 va_b 读到（同一物理字节）。"
+[[hint]]
+text = "mmap：SHARED 先在命名段注册表查 key，命中就复用同一 ppn、未命中再 frame_alloc 并登记；PRIVATE 永远 frame_alloc 一块新（零）帧。"
+[[hint]]
+text = "邮箱握手：生产者必须『先写满 data，最后才置 ready=true』；消费者必须『仅当 ready 才拷贝』。次序颠倒会被探针抓到（置位前不得被读）。"
+[[hint]]
+text = "共享环：count 法最稳——push 满(count==CAP)即拒绝，pop 空(count==0)即 None；tail/head 用 (idx+1)%CAP 环绕。硬件同一套逻辑写成时序 always / 纯函数。"

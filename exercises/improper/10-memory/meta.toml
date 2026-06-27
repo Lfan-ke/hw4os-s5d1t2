@@ -1,0 +1,68 @@
+id      = "10-memory"
+title   = "内存管理 · 分层、Swap 与统一地址空间（两块设备 = 两个数组）"
+track   = "improper"
+require = 1               # 任一变体过即完成；软/硬/语言多过计辅助分
+env     = "host"          # 软件为纯逻辑，host 直接跑
+weight  = 1
+
+# ── 五条实现路径 ──────────────────────────────────────────────────
+# 软件变体覆盖 10.1–10.5 全部场景（设备分层 / 场景一 / Swap 换入换出 / 平坦大内存）。
+# 硬件变体实现 10.5 的地址译码器（与软件 addr_route 软硬同构）。
+# essay 变体为 swap 思考题。
+[[variant]]
+id    = "sw-rust"
+axis  = "software"
+lang  = "rust"
+dir   = "sw/rust"
+build = "cargo"
+
+[[variant]]
+id    = "sw-c"
+axis  = "software"
+lang  = "c"
+dir   = "sw/c"
+build = "gcc-host"
+
+[[variant]]
+id        = "hw-v"
+axis      = "hardware"
+lang      = "verilog"
+dir       = "hw/v"
+build     = "iverilog"
+warn_gate = true          # 0 warning 才算过
+
+[[variant]]
+id        = "hw-bsv"
+axis      = "hardware"
+lang      = "bsv"
+dir       = "hw/bsv"
+build     = "bsc"
+warn_gate = true
+top       = "mkTbMem"
+entry     = "MemDecode.bsv"
+
+[[variant]]
+id    = "essay"
+axis  = "software"
+lang  = "essay"
+dir   = "essay"
+build = "essay"
+
+# ── 统一判题口径 ──────────────────────────────────────────────────
+# 各阶段子串：DEV_PROBE_PASS / SCENARIO_A_PASS / PAGEIN_PASS / SWAPOUT_PASS /
+# SYNC_PASS / UNIFIED_PASS（软件），DECODE_PASS（硬件）。
+# 全部通过的变体最终都打印 ALL_PASS；异构变体只以 ALL_PASS 为统一闸门。
+[judge]
+expect    = ["ALL_PASS"]
+forbid    = ["FAIL", "panic", "ERROR"]
+timeout_s = 30
+
+# ── 渐进提示 ──────────────────────────────────────────────────────
+[[hint]]
+text = "10.1 blk_read/blk_write：先 dev.cost += dev.per_access 累加访问代价，再读/写 dev.data[blk]。容量直接读数组长度。"
+[[hint]]
+text = "10.2 stage_in/stage_out：用 blk_read 从源块取值、blk_write 写到目标块，循环 [0,n)。计算阶段只碰 fast，慢设备 cost 不变即证明'在快设备上算'。"
+[[hint]]
+text = "10.3+10.4 translate：present 命中直接返回 frame；缺页时有空闲帧就用，否则 FIFO 取 victim——victim 脏则把它的帧值 blk_write 回 swap 槽(=其 vpn)，再清 present；最后从 swap 槽 vpn 把页 blk_read 进帧，置 present/frame、清 dirty。sync_all 把所有 present&dirty 的页刷回慢设备。"
+[[hint]]
+text = "10.5 addr_route / mem_decode：la < fast_size → (FAST, la)；否则 (SLOW, la-fast_size)。硬件组合逻辑务必读 la 且每条分支给全部输出位赋值（防 latch）。"

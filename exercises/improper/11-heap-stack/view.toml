@@ -1,0 +1,64 @@
+# 11-heap-stack 可视化声明（纯软件实验，无波形）。
+# 母题：SP 是一根会上下挪的指针；allocator 是个在内存上划地盘的记账员。
+
+[[node]]
+id = "dev"
+label = "设备 = 平坦字数组 + 游标"
+[[node]]
+id = "sp"
+label = "SP（栈：向下生长）"
+[[node]]
+id = "heap"
+label = "heap_top（堆：向上生长）"
+[[node]]
+id = "guard"
+label = "guard 比较器 (heap_top ? sp)"
+[[node]]
+id = "global"
+label = "global allocator 注册点"
+
+[[edge]]
+from = "dev"
+to   = "sp"
+[[edge]]
+from = "dev"
+to   = "heap"
+[[edge]]
+from = "sp"
+to   = "guard"
+[[edge]]
+from = "heap"
+to   = "guard"
+[[edge]]
+from = "heap"
+to   = "global"
+
+[[flow]]
+name = "single-stack"
+path = ["dev", "sp"]
+note = "11.1 单设备单栈：SP 向下生长，越 base 报 STACK_OVERFLOW"
+[[flow]]
+name = "two-devices"
+path = ["dev", "sp", "heap"]
+note = "11.2 两设备：栈在 A、堆在 B，不同地址空间天然互不侵犯"
+[[flow]]
+name = "coexist"
+path = ["dev", "heap", "guard", "sp"]
+note = "11.3 单设备对向生长：heap_top>=sp 时 collide，手动防侵犯"
+[[flow]]
+name = "register"
+path = ["heap", "global"]
+note = "11.4 把 bump allocator 注册成 global，Box/malloc 才有魔法"
+
+[[iface]]
+name = "sp"
+bits = "usize"
+note = "满递减栈：指向最近压入的槽；空时 sp==top"
+[[iface]]
+name = "heap_top"
+bits = "usize"
+note = "bump 游标：下一个空闲槽；OOM 当 heap_top+n>sp"
+[[iface]]
+name = "collide"
+bits = "bool"
+note = "guard：当 heap_top>=sp 时拉高（= MMU/MPU guard page 的本质）"

@@ -1,0 +1,44 @@
+id      = "11-heap-stack"
+title   = "堆与栈 · SP 是一根指针，allocator 是一个记账员"
+track   = "improper"
+require = 1               # 任一变体过即完成；多过计辅助分
+env     = "host"          # 纯逻辑 + 软件模拟设备，host 直接跑
+weight  = 1
+
+# ── 实现路径（软件双语言 + 思考题）──────────────────────────────────
+[[variant]]
+id    = "sw-rust"
+axis  = "software"
+lang  = "rust"
+dir   = "sw/rust"
+build = "cargo"
+
+[[variant]]
+id    = "sw-c"
+axis  = "software"
+lang  = "c"
+dir   = "sw/c"
+build = "gcc-host"
+
+[[variant]]
+id    = "essay"
+axis  = "essay"
+lang  = "essay"
+dir   = "essay"
+build = "essay"
+
+# ── 统一判题口径（软件路径逐段点亮各里程碑；essay 在答案里抄录已达成的里程碑）──
+[judge]
+expect    = ["STACK_PASS", "HEAP_INDEP_PASS", "COEXIST_PASS", "GLOBAL_PASS", "ALL_PASS"]
+forbid    = ["FAIL", "panic", "ERROR", "COLLIDE_UNDETECTED"]
+timeout_s = 30
+
+# ── 渐进提示 ──────────────────────────────────────────────────────
+[[hint]]
+text = "11.1：满递减栈——sp_init 把 SP 设到区顶 top；push 先 sp-=1 再写，sp<=base 仍压就报 STACK_OVERFLOW；pop 先读 mem[sp] 再 sp+=1。"
+[[hint]]
+text = "11.2：两块独立设备 = 两地址空间。栈在小设备 A（满递减），堆在大设备 B（bump 向上，top+n>cap 即 OOM）。各自触顶互不波及——因为它们根本是不同的数组。"
+[[hint]]
+text = "11.3：同一段内存，堆区 [0,heap_top) 向上、栈区 [sp,cap) 向下。alloc 自查 heap_top+n<=sp，push 自查 sp>heap_top；二者恰好相遇时 heap_top==sp，再前进一步任何一侧都该报错——这一句比较就是 guard page 的本质。"
+[[hint]]
+text = "11.4：rust 只需在 static GLOBAL 上方加一行 #[global_allocator]；C 没有语言钩子，要手动 g_alloc = &my_bump; 把分配器接到全局指针。注册后高层容器分配的字节才会落进你的 arena。"

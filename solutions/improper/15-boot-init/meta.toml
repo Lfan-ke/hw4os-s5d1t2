@@ -1,0 +1,67 @@
+id      = "15-boot-init"
+title   = "引导入门 · 启动握手：先置位，后开工（前置程序与链接顺序）"
+track   = "improper"
+require = 1               # 任一变体过即完成；多过计辅助分
+env     = "host"          # 软件变体纯逻辑，host 直接跑；硬件走仿真
+weight  = 1
+
+# ── 五条实现路径（同一启动握手协议的软/硬/思考不同写法）────────────
+[[variant]]
+id    = "sw-rust"
+axis  = "software"
+lang  = "rust"
+dir   = "sw/rust"
+build = "cargo"
+
+[[variant]]
+id    = "sw-c"
+axis  = "software"
+lang  = "c"
+dir   = "sw/c"
+build = "gcc-host"
+
+[[variant]]
+id        = "hw-v"
+axis      = "hardware"
+lang      = "verilog"
+dir       = "hw/v"
+build     = "iverilog"
+warn_gate = true          # 0 warning 才算过
+
+[[variant]]
+id        = "hw-bsv"
+axis      = "hardware"
+lang      = "bsv"
+dir       = "hw/bsv"
+build     = "bsc"
+warn_gate = true
+top       = "mkTbBoot"
+entry     = "BootGate.bsv"
+
+[[variant]]
+id    = "essay"
+axis  = "software"
+lang  = "essay"
+dir   = "essay"
+build = "essay"
+
+# ── 统一判题口径（五变体对外子串一致）──────────────────────────────
+# LOCK_PASS  : 未握手直接用 DATA 被正确拒（吐 0xBADB007 / STATUS.LOCKED）
+# BOOT_PASS  : 握手后 STATUS.READY=1
+# USE_PASS   : 写 DATA 读回变换值正确
+# ORDER_PASS : boot 先于 app 跑——抢跑会被判 BOOT_FAULT
+# ALL_PASS   : 全部通过的统一闸门
+[judge]
+expect    = ["LOCK_PASS", "BOOT_PASS", "USE_PASS", "ORDER_PASS", "ALL_PASS"]
+forbid    = ["BOOT_FAULT", "FAIL", "panic", "ERROR"]
+timeout_s = 30
+
+# ── 渐进提示 ──────────────────────────────────────────────────────
+[[hint]]
+text = "boot_init 四步握手：① 写 UNLOCK=0xB007C0DE 解锁；② 写 CLKDIV=合法值(1..15，不能为 0)；③ 写 CTRL=EN|LE 使能；④ 忙等轮询 STATUS.READY 位直到为 1。取位用 (status>>bit)&1，或与掩码 ST_READY 相与。"
+[[hint]]
+text = "顺序一旦写错就过不了：UNLOCK 必须在 CTRL 之前，否则使能时设备仍锁着、READY 永不置位、轮询会卡死。先解锁、再配时钟、最后使能。"
+[[hint]]
+text = "ORDER 阶段要让 boot_init 先于 app_main 跑。C：在 __attribute__((constructor)) 的 boot_ctor 里调用 boot_init(&g_dev)，crt 会在 main 之前执行它。Rust：在 register_inits() 里返回 vec![boot_init]，给定的 crt_start 会先遍历这张 .init_array 再进 app_main。"
+[[hint]]
+text = "设备模型与测试 harness 已给定、勿改。CLKDIV=0 会让 STATUS.BADCLK 置位、设备永不 READY——这就是真实硬件 PLL 未锁定/时钟未起导致取指乱掉的简化。"

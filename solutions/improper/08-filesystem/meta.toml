@@ -1,0 +1,64 @@
+id      = "08-filesystem"
+title   = "文件管理 · 从裸指针块设备到 easy-fs 风格的简易文件系统"
+track   = "improper"
+require = 1               # 任一变体过即完成；多过计辅助分
+env     = "host"          # 块设备 = 软件大数组；硬件变体走本地仿真
+weight  = 1
+
+# ── 五条实现路径（同一「块设备上的字节约定」心智模型）──────────────
+[[variant]]
+id    = "sw-rust"
+axis  = "software"
+lang  = "rust"
+dir   = "sw/rust"
+build = "cargo"
+
+[[variant]]
+id    = "sw-c"
+axis  = "software"
+lang  = "c"
+dir   = "sw/c"
+build = "gcc-host"
+
+[[variant]]
+id        = "hw-v"
+axis      = "hardware"
+lang      = "verilog"
+dir       = "hw/v"
+build     = "iverilog"
+warn_gate = true          # 0 warning 才算过
+
+[[variant]]
+id        = "hw-bsv"
+axis      = "hardware"
+lang      = "bsv"
+dir       = "hw/bsv"
+build     = "bsc"
+warn_gate = true
+top       = "mkTbBdev"
+entry     = "Bdev.bsv"
+
+[[variant]]
+id    = "essay"
+axis  = "essay"
+lang  = "md"
+dir   = "essay"
+build = "essay"
+
+# ── 统一判题口径 ───────────────────────────────────────────────────
+# BDEV_PASS / ALL_PASS 为各变体共有；软件路径另内部门控 KV_PASS / FS_PASS，
+# 三段全过才打印 ALL_PASS。
+[judge]
+expect    = ["BDEV_PASS", "ALL_PASS"]
+forbid    = ["FAIL", "panic", "ERROR"]
+timeout_s = 60
+
+# ── 渐进提示 ──────────────────────────────────────────────────────
+[[hint]]
+text = "(a) 块设备：window(blk) = 基址 + blk×BLOCK_SIZE；write/read 用 volatile 裸指针逐字节搬运（C 的 win[i]=buf[i]；Rust 的 write_volatile/read_volatile）。硬件就是单端口同步 RAM：if(we) mem[addr]<=wdata; rdata<=mem[addr]。"
+[[hint]]
+text = "(b) KV：记录 = EMM233 | key[3] | len(u8) | data[len] | EMM666。从 off 起校验头 6 字节、读 len、校验 tail 6 字节；命中 key 就累加 data；off 前进到 tail+6；头不匹配即停。"
+[[hint]]
+text = "(c) mkfs：先把全部块清零，再写 SuperBlock（magic/各区起始/分配游标），最后建根 inode（dir，direct[0] 指向根目录数据块）。"
+[[hint]]
+text = "(c) create=分配 inode 号 + 往根目录追加一条 32 字节目录项（name[28]+inode_no）；write=按 ceil(len/512) 顺序分配数据块写满 direct[]，记下 size；read 按 size 逐块读回。"

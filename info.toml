@@ -5,8 +5,24 @@
 name = "AI4OSE OSLAB"
 isa  = "rv64gc"
 
-# 推进顺序（improper 不正经赛道 / proper 正经赛道）
 order = [
   "improper/01-hw-vlan",
   "improper/02-proc-sched",
+  "improper/03-compile-link",
+  "improper/04-thread",
+  "improper/05-fiber",
+  "improper/06-coroutine",
+  "improper/07-ipc",
+  "improper/08-filesystem",
+  "improper/09-abstract-file",
+  "improper/10-memory",
+  "improper/11-heap-stack",
+  "improper/12-address-space",
+  "improper/13-shared-memory",
+  "improper/14-privilege",
+  "improper/15-boot-init",
+  "improper/16-driver",
+  "improper/17-bsp",
+  "improper/18-syscall",
+  "proper/S1-sbi-boot",
 ]

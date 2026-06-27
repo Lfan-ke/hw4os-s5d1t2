@@ -1,0 +1,56 @@
+# 09-abstract-file 可视化声明 —— 驱动 labctl TUI 拓扑/数据流与 diagram 导出。
+# 母题：设备文件 = 把 read/write 接口安到硬件副作用上。
+
+[[node]]
+id = "iface"
+label = "FileLike (read/write)"
+[[node]]
+id = "const"
+label = "常量设备 (read 恒1 / write 吞0)"
+[[node]]
+id = "ring"
+label = "RingSum (r0,r1 双寄存器)"
+[[node]]
+id = "sum"
+label = "read = r0 + r1"
+
+[[edge]]
+from = "iface"
+to   = "const"
+[[edge]]
+from = "iface"
+to   = "ring"
+[[edge]]
+from = "ring"
+to   = "sum"
+
+# 数据流场景（TUI 动画 / diagram 高亮）
+[[flow]]
+name = "const-read"
+path = ["iface", "const"]
+note = "常量设备 · read 恒 1 / write 吞掉返 0"
+[[flow]]
+name = "ring-push"
+path = ["iface", "ring", "sum"]
+note = "RingSum · write 推入移位 (r1<-r0; r0<-x)"
+[[flow]]
+name = "ring-reset"
+path = ["iface", "ring", "sum"]
+note = "RingSum · write(233) 复位 r0=r1=0"
+
+# 接口（端口/寄存器）面板
+[[iface]]
+name = "wdata"
+bits = "[15:0]"
+note = "写入数据；233 = magic 复位"
+[[iface]]
+name = "rdata"
+bits = "[15:0]"
+note = "RingSum read = r0 + r1"
+[[iface]]
+name = "const_read"
+bits = "[15:0]"
+note = "常量设备 read 恒 1"
+
+[wave]
+signals = ["clk", "rst", "we", "wdata", "rdata", "const_read"]

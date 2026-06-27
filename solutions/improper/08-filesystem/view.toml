@@ -1,0 +1,62 @@
+# 08-filesystem 可视化声明 —— 块设备 → KV → easy-fs 的字节排布。
+[[node]]
+id = "blk"
+label = "块设备 RAM (blk_read/blk_write)"
+[[node]]
+id = "super"
+label = "SuperBlock (block 0)"
+[[node]]
+id = "inode"
+label = "inode 区 (size+direct[])"
+[[node]]
+id = "dir"
+label = "根目录 (DirEntry name[28]+ino)"
+[[node]]
+id = "data"
+label = "数据区 (文件内容块)"
+
+[[edge]]
+from = "blk"
+to   = "super"
+[[edge]]
+from = "super"
+to   = "inode"
+[[edge]]
+from = "inode"
+to   = "dir"
+[[edge]]
+from = "inode"
+to   = "data"
+
+[[flow]]
+name = "mmio-rw"
+path = ["blk"]
+note = "(a) 裸指针/MMIO：写进去再读出来逐字节相等"
+[[flow]]
+name = "kv-scan"
+path = ["blk", "data"]
+note = "(b) 扫描 EMM233/EMM666 记录，按 key 收集"
+[[flow]]
+name = "mkfs-create-ls"
+path = ["blk", "super", "inode", "dir"]
+note = "(c) mkfs → create → ls → 读写回路"
+
+[[iface]]
+name = "BLOCK_SIZE"
+bits = "512 B"
+note = "一个块的字节数"
+[[iface]]
+name = "DirEntry"
+bits = "32 B"
+note = "name[28] + inode_no(u32 LE)"
+[[iface]]
+name = "DiskInode"
+bits = "32 B"
+note = "size(4) + type(4) + direct[6]*4"
+[[iface]]
+name = "KV record"
+bits = "16+len B"
+note = "EMM233 | key[3] | len | data | EMM666"
+
+[wave]
+signals = ["clk", "we", "addr", "wdata", "rdata"]

@@ -1,0 +1,8 @@
+[package]
+name = "syscall-sw-rust"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "syscall"
+path = "src/main.rs"

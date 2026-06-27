@@ -1,0 +1,55 @@
+# 03-compile-link 可视化声明（纯软件实验，无波形）。
+# 用一张"内存房产图"表达链接脚本的工作：碎片(section) → 输出段 → 落地址 → 自描述镜像。
+
+[[node]]
+id = "frags"
+label = "编译产物：带名字的碎片 (.text/.rodata/.data/.bss/.config/.apps)"
+[[node]]
+id = "script"
+label = "链接脚本 linker.ld（段收集 + 地址推进 + 边界符号）"
+[[node]]
+id = "image"
+label = "镜像（ELF 自描述 / 纯二进制裸字节）"
+[[node]]
+id = "loader"
+label = "加载器/启动代码（清 .bss + 跳入口 + 串接 app）"
+
+[[edge]]
+from = "frags"
+to   = "script"
+[[edge]]
+from = "script"
+to   = "image"
+[[edge]]
+from = "image"
+to   = "loader"
+
+[[flow]]
+name = "layout"
+path = ["frags", "script", "image"]
+note = "E1：text<rodata<data<bss 连续摆放，导出 __bss_start/__bss_end"
+[[flow]]
+name = "section"
+path = ["frags", "script", "image"]
+note = "E2：自定义 .config 段落到 4K 对齐地址，PROVIDE(__config_start)"
+[[flow]]
+name = "elf-vs-bin"
+path = ["image", "loader"]
+note = "E3：ELF 靠 program header 自描述加载；纯二进制必须 link==load"
+[[flow]]
+name = "chain"
+path = ["script", "image", "loader"]
+note = "E4：.apps 段内顺序 A→B→C 决定串接执行顺序"
+
+[[iface]]
+name = "BASE"
+bits = "0x80200000"
+note = "裸机加载基址（rcore BASE_ADDRESS / xv6 kernel.ld）"
+[[iface]]
+name = "e_entry"
+bits = "u64@24"
+note = "ELF64 头：入口虚拟地址"
+[[iface]]
+name = "e_phoff"
+bits = "u64@32"
+note = "ELF64 头：program header 表文件偏移"

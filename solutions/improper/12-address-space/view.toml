@@ -1,0 +1,65 @@
+# 12-address-space 可视化声明（纯软件实验，无波形）。
+# 软件 MMU 数据通路：va → 拆位 → 查页表 → pa → 物理帧。
+
+[[node]]
+id = "va"
+label = "虚拟地址 va (vpn|off)"
+[[node]]
+id = "split"
+label = "拆位 vpn=va>>12 · off=va&0xfff"
+[[node]]
+id = "pt"
+label = "页表（扁平 / 两级 / SV39 三级）"
+[[node]]
+id = "pa"
+label = "物理地址 pa = ppn<<12 | off"
+[[node]]
+id = "frame"
+label = "物理帧数组（只有 NFRAMES 帧）"
+
+[[edge]]
+from = "va"
+to   = "split"
+[[edge]]
+from = "split"
+to   = "pt"
+[[edge]]
+from = "pt"
+to   = "pa"
+[[edge]]
+from = "pa"
+to   = "frame"
+
+[[flow]]
+name = "sparse"
+path = ["va", "split", "pt", "pa", "frame"]
+note = "E1：稀疏访问只映用到的 vpn，巨址不铺开（实占 ≤3 帧）"
+[[flow]]
+name = "direct"
+path = ["va", "pa", "frame"]
+note = "E2：直接映射窗口 identity（pa==va），跨空间/跨核共享拍卖行"
+[[flow]]
+name = "smp"
+path = ["va", "pa", "frame"]
+note = "E3：slot_addr(hart) 每核错开一槽，0 号核无锁归约"
+[[flow]]
+name = "twolevel"
+path = ["va", "split", "pt", "pa", "frame"]
+note = "E4：pde→pte 两级 walk，按需建二级表"
+[[flow]]
+name = "sv39"
+path = ["va", "split", "pt", "pa", "frame"]
+note = "E5：vpn2→vpn1→vpn0 三级 walk + 解析 V/R/W/X/U"
+
+[[iface]]
+name = "vpn"
+bits = "u64"
+note = "虚拟页号 = va>>12"
+[[iface]]
+name = "ppn"
+bits = "u64"
+note = "物理页号；pa = ppn<<12 | off"
+[[iface]]
+name = "pte_flags"
+bits = "V R W X U"
+note = "SV39 PTE 低位标志：有效/读/写/执行/用户"

@@ -1,0 +1,90 @@
+# 18-syscall 可视化声明 —— 驱动 labctl TUI 数据流 / diagram 导出。
+# 主线锚点是 S1 向量分发器（软硬同构），S2/S3/S4 是其在软件侧的演化延伸。
+
+[[node]]
+id = "trap"
+label = "trap_req / cause"
+[[node]]
+id = "tvec"
+label = "mtvec/stvec (base, MODE)"
+[[node]]
+id = "disp"
+label = "vec_dispatch (direct | base+4*cause)"
+[[node]]
+id = "pc"
+label = "handler_pc / accept"
+[[node]]
+id = "frame"
+label = "TrapContext (x0..x31 + sepc + sstatus)"
+[[node]]
+id = "abi"
+label = "syscall ABI (a7=号, a0..a5=参)"
+[[node]]
+id = "kern"
+label = "sys_write / sys_getpid / sys_exit"
+
+[[edge]]
+from = "trap"
+to   = "disp"
+[[edge]]
+from = "tvec"
+to   = "disp"
+[[edge]]
+from = "disp"
+to   = "pc"
+[[edge]]
+from = "pc"
+to   = "frame"
+[[edge]]
+from = "frame"
+to   = "abi"
+[[edge]]
+from = "abi"
+to   = "kern"
+
+# 数据流场景（TUI 动画 / diagram 高亮）
+[[flow]]
+name = "s1-direct"
+path = ["trap", "tvec", "disp", "pc"]
+note = "S1 · direct：所有号 → 同一入口 base"
+[[flow]]
+name = "s1-vectored"
+path = ["trap", "tvec", "disp", "pc"]
+note = "S1 · vectored：handler_pc = base + 4*cause（查表跳转）"
+[[flow]]
+name = "s2-trapframe"
+path = ["pc", "frame"]
+note = "S2 · 陷入整存上下文；返回 sepc+=4、a0=返回值"
+[[flow]]
+name = "s3-abi"
+path = ["frame", "abi", "kern"]
+note = "S3 · 按 a7 分发到 handler，结果写回 a0；未知号 -ENOSYS"
+[[flow]]
+name = "s4-ecall"
+path = ["trap", "tvec", "disp", "pc", "frame", "abi", "kern"]
+note = "S4 · 真实 ecall/syscall 往返：HELLO_SYSCALL 落到 stdout"
+
+# 接口（端口 / 寄存器约定）面板
+[[iface]]
+name = "mode"
+bits = "[0:0]"
+note = "0=direct 1=vectored（stvec.MODE）"
+[[iface]]
+name = "base"
+bits = "[31:0]"
+note = "向量表基址（mtvec/stvec BASE）"
+[[iface]]
+name = "cause"
+bits = "[3:0]"
+note = "异常号（压成 16 项；U 态 ecall ⇒ scause=8）"
+[[iface]]
+name = "handler_pc"
+bits = "[31:0]"
+note = "direct=base · vectored=base+4*cause"
+[[iface]]
+name = "a7 / a0..a5 / a0"
+bits = "i64"
+note = "调用号 / 参数 / 返回值（GNU RV64 ABI）"
+
+[wave]
+signals = ["clk", "mode", "base", "cause", "trap_req", "handler_pc", "accept"]

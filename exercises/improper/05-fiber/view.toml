@@ -1,0 +1,45 @@
+# 05-fiber 可视化声明（纯软件用户态机制，无波形）。
+[[node]]
+id = "ctx"
+label = "Ctx 快照 (ra/sp/s0–s11)"
+[[node]]
+id = "switch"
+label = "switch_ctx 存旧/载新"
+[[node]]
+id = "ready"
+label = "就绪队列 (round-robin)"
+[[node]]
+id = "run"
+label = "执行序 (PING/PONG · A1B1C1…)"
+
+[[edge]]
+from = "ctx"
+to   = "switch"
+[[edge]]
+from = "switch"
+to   = "ready"
+[[edge]]
+from = "ready"
+to   = "run"
+
+[[flow]]
+name = "ctxsw"
+path = ["ctx", "switch", "run"]
+note = "两纤程递接力棒：PING ↔ PONG"
+[[flow]]
+name = "sched"
+path = ["ready", "switch", "run"]
+note = "spawn+yield+调度：A1 B1 C1 A2 B2 C2"
+[[flow]]
+name = "batch"
+path = ["ready", "run"]
+note = "无 yield → 顺序批处理；插 yield → 交错"
+
+[[iface]]
+name = "callee_saved"
+bits = "14×u64"
+note = "ra+sp+s0~s11：协作式切换只需保存这一子集"
+[[iface]]
+name = "yield_point"
+bits = "void"
+note = "唯一的让出点；没有它，单线程异步=批处理"

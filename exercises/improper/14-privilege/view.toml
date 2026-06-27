@@ -1,0 +1,83 @@
+# 14-privilege 可视化声明 —— 驱动 labctl TUI 拓扑/数据流与 diagram 导出。
+# 教学准确为先；labctl diagram --check 可对照 yosys netlist JSON 校验真实结构。
+
+[[node]]
+id = "csr"
+label = "csr 触发器 {saved_priv,feat_en,cur_priv}"
+[[node]]
+id = "op"
+label = "op {kind,arg_priv,arg_en}"
+[[node]]
+id = "cmp"
+label = "特权比较器 cur_priv < need"
+[[node]]
+id = "mux"
+label = "按 kind 选操作 (写低位/置位/陷入)"
+[[node]]
+id = "csro"
+label = "csr' (下一态)"
+[[node]]
+id = "trap"
+label = "trap 线 (illegal → 陷入)"
+
+[[edge]]
+from = "csr"
+to   = "cmp"
+[[edge]]
+from = "op"
+to   = "cmp"
+[[edge]]
+from = "csr"
+to   = "mux"
+[[edge]]
+from = "op"
+to   = "mux"
+[[edge]]
+from = "cmp"
+to   = "trap"
+[[edge]]
+from = "mux"
+to   = "csro"
+
+# 数据流场景（TUI 动画 / diagram 高亮）
+[[flow]]
+name = "normal-denied"
+path = ["csr", "cmp", "trap"]
+note = "NORMAL · cur_priv < arg_priv → 没权限 → trap"
+[[flow]]
+name = "drop-write-low"
+path = ["op", "mux", "csro"]
+note = "DROP · 向下放权 = 把低位 cur_priv 写成 arg_priv"
+[[flow]]
+name = "ecall-xret"
+path = ["op", "mux", "csro"]
+note = "ECALL 提权(saved←cur,cur←A) / XRET 返回(cur←saved)"
+[[flow]]
+name = "setfeat-usefeat"
+path = ["csr", "cmp", "trap"]
+note = "USEFEAT · 特权够 且 feat_en 亮，缺一不可"
+
+# 接口（状态字 / 操作字位域）面板
+[[iface]]
+name = "cur_priv"
+bits = "csr[1:0]"
+note = "当前特权态：A=2(最高) B=1 C=0(最低)"
+[[iface]]
+name = "feat_en"
+bits = "csr[2]"
+note = "功能使能位（satp 开 MMU / SUM 类）"
+[[iface]]
+name = "saved_priv"
+bits = "csr[4:3]"
+note = "陷入时保存的前态（≈ sstatus.SPP，三态需 2 位）"
+[[iface]]
+name = "kind"
+bits = "op[2:0]"
+note = "0 NORMAL 1 DROP 2 ECALL 3 XRET 4 SETFEAT 5 USEFEAT"
+[[iface]]
+name = "arg_priv/arg_en"
+bits = "op"
+note = "NORMAL/USEFEAT/DROP 的目标等级；SETFEAT 写入的使能值"
+
+[wave]
+signals = ["clk", "csr", "kind", "arg_priv", "csr_o", "trap"]

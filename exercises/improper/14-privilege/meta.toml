@@ -1,0 +1,63 @@
+id      = "14-privilege"
+title   = "三态转换 · 特权级，不过是几根线（A/B/C 三特权级，软硬同构）"
+track   = "improper"
+require = 1               # 任一变体把子实验 1–5 全跑出即完成；多过计辅助分
+env     = "host"          # 软件为纯逻辑，host 直接跑；硬件走仿真 tb
+weight  = 1
+
+# ── 五条实现路径（同一 step()/priv_gate 逻辑的软/硬不同写法 + essay）──
+[[variant]]
+id    = "sw-rust"
+axis  = "software"
+lang  = "rust"
+dir   = "sw/rust"
+build = "cargo"
+
+[[variant]]
+id    = "sw-c"
+axis  = "software"
+lang  = "c"
+dir   = "sw/c"
+build = "gcc-host"
+
+[[variant]]
+id        = "hw-v"
+axis      = "hardware"
+lang      = "verilog"
+dir       = "hw/v"
+build     = "iverilog"
+warn_gate = true          # 0 warning 才算过
+
+[[variant]]
+id        = "hw-bsv"
+axis      = "hardware"
+lang      = "bsv"
+dir       = "hw/bsv"
+build     = "bsc"
+warn_gate = true
+top       = "mkTbPriv"
+entry     = "PrivGate.bsv"
+
+[[variant]]
+id    = "essay"
+axis  = "software"
+lang  = "essay"
+dir   = "essay"
+build = "essay"
+
+# ── 统一判题口径（四代码变体对外行为逐位一致）──────────────────────
+# 各子实验子串：CMP / DROP / TRAP / FEAT / CAPSTONE；全过收尾 ALL_PASS。
+[judge]
+expect    = ["CMP_PASS", "DROP_PASS", "TRAP_PASS", "FEAT_PASS", "CAPSTONE_PASS", "ALL_PASS"]
+forbid    = ["FAIL", "panic", "ERROR"]
+timeout_s = 30
+
+# ── 渐进提示 ──────────────────────────────────────────────────────
+[[hint]]
+text = "子实验 1（CMP/NORMAL）：'有没有权限'就是一根比较器线。trap = cur_priv < arg_priv，csr 不变。A=2 B=1 C=0，数值越大权限越高。"
+[[hint]]
+text = "子实验 2（DROP）：向下放权 = 写低位。仅当 arg_priv <= cur_priv 才把 cur_priv 写成 arg_priv；否则 trap（不许直接提权）。A→B→C 自由下行。"
+[[hint]]
+text = "子实验 3（TRAP）：ECALL 是合法陷入——saved_priv←cur_priv 再 cur_priv←A，无 trap；XRET 恢复 cur_priv←saved_priv，但 cur_priv!=A 时 trap（非最高态不得 xret）。saved_priv 取 csr[4:3]。"
+[[hint]]
+text = "子实验 4（FEAT）：SETFEAT 在 cur_priv<B 时 trap，否则 feat_en←arg_en；USEFEAT 在 cur_priv<arg_priv 或 feat_en==0 时 trap。能力 = 特权够 且 使能位亮。子实验 5（CAPSTONE）只把前四段拼成一条轨迹，无需新逻辑。"

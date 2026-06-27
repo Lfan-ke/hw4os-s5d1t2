@@ -1,0 +1,8 @@
+[package]
+name = "absfile-sw-rust"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "absfile"
+path = "src/main.rs"

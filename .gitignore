@@ -223,3 +223,6 @@ __marimo__/
 **/*.vvp
 **/obj_dir/
 **/sim_build/
+# 正经赛道内核构建产物
+**/kernel.elf
+**/*.o

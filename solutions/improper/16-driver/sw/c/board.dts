@@ -1,0 +1,22 @@
+/dts-v1/;
+
+/ {
+	#address-cells = <1>;
+	#size-cells = <1>;
+	model = "acme-devkit";
+
+	blink@10001000 {
+		compatible = "acme,blink";
+		reg = <0x10001000 0x1000>;
+	};
+
+	gpio@10002000 {
+		compatible = "acme,gpio";
+		reg = <0x10002000 0x1000>;
+	};
+
+	lamp@10003000 {
+		compatible = "acme,blink-v2";
+		reg = <0x10003000 0x1000>;
+	};
+};

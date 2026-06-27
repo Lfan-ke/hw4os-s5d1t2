@@ -1,0 +1,52 @@
+# 06-coroutine 可视化声明（纯软件实验，无波形）。
+# 一句话母题：无栈协程 = 一台被反复 poll 的状态机；执行器轮询推进，唤醒避免空转。
+[[node]]
+id = "code"
+label = "顺序代码（含让出点）"
+[[node]]
+id = "fsm"
+label = "状态机 (state=i, 局部塞进 struct)"
+[[node]]
+id = "poll"
+label = "poll → Pending(v) / Ready(f)"
+[[node]]
+id = "exec"
+label = "执行器 round-robin 轮询"
+[[node]]
+id = "waker"
+label = "reactor + waker（只 poll 被唤醒者）"
+
+[[edge]]
+from = "code"
+to   = "fsm"
+[[edge]]
+from = "fsm"
+to   = "poll"
+[[edge]]
+from = "poll"
+to   = "exec"
+[[edge]]
+from = "exec"
+to   = "waker"
+
+[[flow]]
+name = "statemachine"
+path = ["code", "fsm", "poll"]
+note = "06.1 手写 poll：i<count 让出，i==count 收尾"
+[[flow]]
+name = "interleave"
+path = ["poll", "exec"]
+note = "06.2 多协程交错；全程不让出 → 退化批处理"
+[[flow]]
+name = "wakeup"
+path = ["exec", "waker"]
+note = "06.3 只重 poll 被唤醒者：polls ≤ wakes + tasks"
+
+[[iface]]
+name = "Step"
+bits = "Pending(u32)|Ready(u32)"
+note = "让出值 / 终值；对应硬件 valid+data / done"
+[[iface]]
+name = "state"
+bits = "i:u32"
+note = "状态号 = 进度；跨让出点的局部（acc/i）存进 struct"

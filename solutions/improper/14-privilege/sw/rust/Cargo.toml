@@ -1,0 +1,11 @@
+[package]
+name = "priv-sw-rust"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "priv"
+path = "src/main.rs"
+
+[profile.dev]
+panic = "unwind"

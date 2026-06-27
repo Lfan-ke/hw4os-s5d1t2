@@ -1,0 +1,65 @@
+id      = "04-thread"
+title   = "线程管理 · 进程是线程的资源容器（PCB→TCB · 上下文=CSR+GPRs · 超线程）"
+track   = "improper"
+require = 1               # 任一变体过即完成；多过计辅助分
+env     = "host"          # 纯逻辑 / 软件模拟，host 直接跑
+weight  = 1
+
+# ── 五条实现路径 ──────────────────────────────────────────────────
+# 软件(rust/c) 同时覆盖 04-1 上下文切换 + 04-2 PCB→TCB；
+# 硬件(v/bsv) 用「双上下文寄存器文件 + 共享加法器」预演超线程，输出与软件一致；
+# essay 答 04-3 超线程思考题。
+[[variant]]
+id    = "sw-rust"
+axis  = "software"
+lang  = "rust"
+dir   = "sw/rust"
+build = "cargo"
+
+[[variant]]
+id    = "sw-c"
+axis  = "software"
+lang  = "c"
+dir   = "sw/c"
+build = "gcc-host"
+
+[[variant]]
+id        = "hw-v"
+axis      = "hardware"
+lang      = "verilog"
+dir       = "hw/v"
+build     = "iverilog"
+warn_gate = true          # 0 warning 才算过
+
+[[variant]]
+id        = "hw-bsv"
+axis      = "hardware"
+lang      = "bsv"
+dir       = "hw/bsv"
+build     = "bsc"
+warn_gate = true
+top       = "mkTbCtx"
+entry     = "Ctx.bsv"
+
+[[variant]]
+id    = "essay"
+axis  = "essay"
+lang  = "md"
+dir   = "essay"
+build = "essay"
+
+# ── 统一判题口径（五变体对外行为一致）──────────────────────────────
+[judge]
+expect    = ["CTX_SWAP_PASS", "SHARE_PASS", "SCHED_PASS", "ALL_PASS"]
+forbid    = ["FAIL", "panic", "ERROR"]
+timeout_s = 30
+
+# ── 渐进提示 ──────────────────────────────────────────────────────
+[[hint]]
+text = "04-1：一个上下文 = 一把寄存器。ctx_save 把当前 vCPU 的整套寄存器现场（gpr[31]+sepc+sstatus+sp）整存进 cur；ctx_restore 反向整载；ctx_switch = 先 save(当前→cur) 再 restore(next→当前)。"
+[[hint]]
+text = "04-2：把 PCB 拆成『资源容器 Process{mem,fd,sem}』+『执行身份 Tcb{ctx, 指向 Process 的指针}』。让两个 TCB 指向同一个 Process（Rust 用 Rc::clone，C 用同一个指针），写一个、读另一个就能看见同一份。"
+[[hint]]
+text = "调度器复用 04-1 的 ctx_switch：轮流把 vCPU 从当前 TCB 切到下一个 TCB，每个 TCB 的 sepc 各自推进、互不干扰，交错出轮转执行序。"
+[[hint]]
+text = "硬件：bank0/bank1 是复制的 architectural state（影子寄存器组），读口与加法器是『共享后端』——由 active 一拍选中一套上下文。这正是超线程：复制最少的寄存器、共享最贵的执行单元。"
