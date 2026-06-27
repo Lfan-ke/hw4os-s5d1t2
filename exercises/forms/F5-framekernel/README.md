@@ -74,7 +74,18 @@ labctl hint forms/F5-framekernel     # 卡住看提示
 - [ ] 能口述本 demo 的 `Frame` ↔ asterinas OSTD `Frame`、`#![forbid(unsafe_code)]` ↔
       `kernel/src/lib.rs:8` 的 `#![deny(unsafe_code)]`、`framework_unsafe` 计数 ↔ 可审计 TCB。
 
-## 5. 思考题（`essay/THINKING.md` 作答即可通过）
+## 5. 引申（本最小模型 → 真实 framekernel / Asterinas）
+
+本课把 OSTD 简化成一个 `Frame`+共享 `Pool`、用 `include_str!` 数源码里的 `unsafe` 字符串来"审计 TCB"、C 变体只能靠约定。按兴趣可沿这些方向逼近 Asterinas 的真实形态：
+
+1. **把 `Frame` 扩成真 OSTD 抽象**：实现 DMA-safe buffer、`VmReader`/`VmWriter`、typed `PageTable`，让安全 API 不只是"边界检查的 write/read"，而是一整套把物理内存/页表能力包成安全接口的框架层，对照 asterinas `ostd`。
+2. **用真审计工具替代字符串计数**：把 `check_mintcb` 的 `matches("unsafe")` 换成 `cargo-geiger`（统计 unsafe 用量）+ crate 级 `#![forbid(unsafe_code)]` + clippy lint，让"最小 TCB"成为 CI 可强制的属性而非自查。
+3. **给 soundness 上机器证明**：用 `miri` 跑 `Frame::write` 抓未定义行为，或用 Kani/Prusti 形式化验证"边界检查使安全 API sound"——呼应思考题 3 里"soundness 为何是硬要求"。
+4. **用借用切分实现零成本不重叠**：把"共享 Pool + 两个 Frame"重写成 `split_at_mut` 风格的可变借用切分，让 borrow checker 在编译期保证两个 `Frame` 互不重叠、互不别名——这才是"类型系统替代 MMU"最纯粹的形态。
+5. **移动语义传所有权**：让 `Frame` 在子系统间以 `move` 转移所有权、零拷贝传递，体会 framekernel 如何在单地址空间里既零拷贝又防 use-after-free。
+6. **对照 Rust-for-Linux**：看真实内核里 Rust 抽象层（`Ref`/`ARef`、`unsafe` 边界与 `# Safety` 契约）如何在工业内核中落地最小可审计 TCB，理解 framekernel 不只是学术原型。
+
+## 6. 思考题（`essay/THINKING.md` 作答即可通过）
 
 1. framekernel 凭什么「既要又要」：单地址空间的宏内核性能 + 微内核式隔离？类型系统怎么替代 MMU？
 2. 为什么 C 做不到，只能靠「约定 / MMU」近似？（类比：C 也没有 async/await，协程只能约定式模拟）

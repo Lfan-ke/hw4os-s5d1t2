@@ -54,7 +54,19 @@ labctl hint improper/06-coroutine    # 卡住看提示
 - [ ] 三者皆过再打印 `ALL_PASS`。rust / c 任一条全过即必修达标；另一条 + essay 计辅助分。
 - [ ] 能用自己的话讲清「无栈 vs 有栈」省/付各在哪（`essay/THINKING.md`）。
 
-## 4. 思考题（`essay/THINKING.md` 作答即可通过）
+## 4. 引申（可扩展性：从玩具状态机到真实 async 运行时）
+
+本课的 `Stepper` 是一台**手写**的极简状态机：状态号就一个 `i`，让出值是纯数据，执行器是单线程 round-robin，`Waker` 只是个计数器。真实的 async 运行时复杂得多，按兴趣选方向深入：
+
+1. **把累加状态机换成「真会阻塞的 I/O」**：让 `Pending` 不再立刻可推进，而是「等一个 timer / 一个 socket 可读」。给执行器接一个 `epoll`/`io_uring`（或 mio）做的 **reactor**，`Waker` 由 I/O 就绪事件真正触发——这才是 06.3「只重 poll 被唤醒者」省忙等的意义所在。对照 tokio、embassy。
+2. **嵌套 await 与 Future 组合子**：本课协程是「平的」一层。试着让一个 async 函数 `await` 另一个，体会编译器把**嵌套状态机摊平**成一个大 enum（状态机套状态机），再实现 `join`/`select`/`FuturesUnordered`，理解 06.4 `JOIN_PASS` 背后的并发组合。
+3. **`Pin` 与自引用**：真实 Future 跨让出点保存的局部里可能有指向自身字段的引用（自引用结构），这正是 Rust 需要 `Pin`/`Unpin` 的原因。把 `Stepper` 改成持有内部 buffer 的借用，观察为什么「无栈 = 把局部塞进 struct」一旦自引用就需要固定地址。
+4. **C 侧补齐：protothreads / Duff's device**：C 没有 `async/await`（本课要点）。用 `switch` + 行号宏（Contiki **protothreads** 的 `LC_RESUME/LC_SET`，本质 Duff's device）手写出与 Rust 编译器同构的状态机，亲手扮演一次「编译器」。
+5. **染色问题与有栈对照**：把同一逻辑用**有栈**协程（05-fiber 的栈切换 / `ucontext` / Go goroutine 风格）再写一遍，量化「无栈省了每任务一根栈、却不能从任意调用深度 yield（red-blue 函数染色）」的取舍（思考题 2）。
+6. **多线程 work-stealing 执行器**：把单线程 round-robin 执行器升级为多 worker + **work-stealing** 队列（tokio multi-thread runtime / Rayon 的核心），引出 `Send + Sync` 约束、任务窃取与负载均衡。
+7. **流片成硬件 FSM**：把 06.1 的 enum 状态机直接映射成 Verilog 状态机（每个时钟沿 = 一次 `poll`，`Pending`/`Ready` ↔ valid/done 握手信号），呼应第 01 课「软件能做的硬件也能做」（思考题 3）。
+
+## 5. 思考题（`essay/THINKING.md` 作答即可通过）
 
 1. 为什么无栈协程也叫「绿色线程」？相比陷入内核的线程切换，它在用户态省掉了哪些开销
    （特权级切换 / 内核栈 / TLB·缓存抖动 / 调度器锁 / TLS）？又因「无栈」额外省掉了什么（每任务一根独立栈）？

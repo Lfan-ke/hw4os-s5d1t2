@@ -67,7 +67,18 @@ labctl hint improper/17-bsp    # 卡住看提示
 - [ ]（辅助）硬件译码模型 `DECODE_A/B_PASS` 且 0 warning；另一软件语言也过计辅助分。
 - [ ] 能用一句话说清"BSP 在做什么、设备树凭什么让一个 OS 跑遍多板"（思考题）。
 
-## 5. 思考题（`essay/THINKING.md` 作答即可通过）
+## 5. 引申：从 mini-DT 到真实板级生态
+
+本课用扁平节点数组冒充 FDT、用内存数组冒充 MMIO 总线、`bsp_probe` 用硬编码表，只覆盖两块板。想接近真实 BSP/设备树生态，可往这些方向深入：
+
+1. **真 FDT 解析**：把扁平数组换成真实 FDT 二进制（`magic=0xd00dfeed`、大端、结构块 + 字符串表、4 字节对齐、`phandle` 引用），对照 Linux `libfdt`/`of_*` API 自己写一个解析器。
+2. **真驱动模型**：把 `compatible` 单串匹配扩成 `of_match_table` 风格的兼容串列表 + 优先级 + 驱动 `probe`/`remove` 生命周期 + deferred probe（依赖设备未就绪时重试）。
+3. **中断拓扑**：解析 `interrupt-parent`/`interrupts` 与 `phandle` 引用，构建中断控制器树（PLIC/CLINT），让 `driver_bind` 不仅认地址还认中断号。
+4. **多发现机制对照**：在 DT 之外再实现 x86 ACPI 表解析与 PCIe 配置空间枚举两条路径并列比较——板级信息分别存哪、由谁产生、由谁消费。
+5. **DT overlay 与热插**：支持 overlay 叠加节点（扩展板/cape/HAT）、运行时增删节点，理解设备树并非只在启动期一次性消费。
+6. **BSP 化真实内核**：把 rcore 写死的 `UART=0x1000_0000`/`CLINT=0x0200_4000` 真正抽到 `boards/` + `board_init()`，由 DT 填充 `BoardConfig`，让同一二进制跑遍 qemu-virt 与真实 SoC。
+
+## 6. 思考题（`essay/THINKING.md` 作答即可通过）
 
 1. bootloader + 设备树都不变、只升级 OS，为什么仍能开机？把"设备树"当作 firmware↔OS 的稳定 ABI 论证。
    反过来：新 OS 想用一个 DT 里没描述的新设备，该谁动手——重出 DT/重刷 bootloader，还是 OS 自探测？各自代价？

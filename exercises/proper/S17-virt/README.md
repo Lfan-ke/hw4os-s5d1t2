@@ -78,7 +78,25 @@ ALL_PASS
 ```
 `kmain` 返回后 `entry.S` 调 `k_shutdown`，QEMU 退出码 0。
 
-## 4. 思考题
+## 4. 完成标准 (DoD)
+
+- [ ] `stage2_walk` 完整实现两级查找：取 `g_root[i1]` 验 `PTE_V` → 取下级表 → 取叶 `l0[i0]` 验 `PTE_V` 与 `PTE_LEAF`，未命中置 `*ok=0` 返回 0。
+- [ ] `two_stage_translate` 把 GVA→GPA→HPA 一路串通，测试帧里的魔数能被读回。
+- [ ] 输出 `TWOSTAGE_PASS`、`TRAP_EMU_PASS`、`ALL_PASS`，无 `FAIL` / `panic` / `UNEXPECTED`。
+- [ ] `kmain` 返回后正常 `k_shutdown`，QEMU 退出码 0。
+
+## 5. 引申
+
+本实验是**纯软件模型**：用普通数组当 arena、用指针当页表、用一次跨“特权边界”的函数调用模拟陷入——因为 labctl 的 OpenSBI QEMU 不把 H 扩展暴露给 S 态。想摸真硬件/更完整语义，可按兴趣深入：
+
+1. **真跑 H 扩展**。换支持 H 的 QEMU CPU（`-cpu rv64,h=true`），在 HS 态用真 `hgatp/vsatp/hstatus`，起一个最小 guest 内核走真两阶段。对照轻量 hypervisor **bao** / **Xvisor** / RISC-V 版 **KVM**。
+2. **真 G-stage 页表结构**。RISC-V 的 stage-2 是 **Sv39x4**——根页表顶层比普通 Sv39 宽 4 倍（GPA 多 2 位）。把模型里对齐到这个布局，再加大页（2MiB/1GiB）、权限位（R/W/X/U）、A/D 位的处理。
+3. **trap-and-emulate 扩展到设备**。现在只模拟读 CSR；扩到 **MMIO 模拟**：guest 访问设备地址触发 G-stage 缺页 → VMM 解码指令 → 模拟寄存器读写。再对照 **virtio** 的半虚拟化（paravirt）路径，比较 trap-and-emulate 与 virtio 前后端分担的取舍。
+4. **中断与 vCPU**。加虚拟中断注入（`hvip`）、VM-exit 原因解码、vCPU 调度，让 guest 能跑出时钟中断和真正的多任务。
+5. **影子页表 vs 硬件两阶段**。在没有 G-stage 硬件的老平台上，VMM 用**影子页表（shadow page table）**把两阶段折叠成一阶段；实现一版并与硬件两阶段对比性能与复杂度。
+6. **嵌套虚拟化与类型对照**。把模型对照 type1（Xen/bao）、type2（KVM+QEMU、VMware Workstation）、以及纯模拟器（QEMU TCG），理解“硬件辅助”各加速了哪一步。
+
+## 6. 思考题
 
 见 `essay/THINKING.md`（type1/2/1.5/模拟器的区分、HS/VS/VU、为什么需要两阶段、
 trap-and-emulate vs 半虚拟化）。

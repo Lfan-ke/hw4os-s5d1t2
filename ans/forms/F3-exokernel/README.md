@@ -70,7 +70,18 @@ labctl hint forms/F3-exokernel    # 卡住看提示
   容量不足返回 None/0 且不留脏 `used` 标记。
 - 两个 libOS 的块区间由 exo **不重叠**地发放，所以同一块全局磁盘上互不踩踏（隔离）。
 
-## 5. 思考题（`essay/THINKING.md` 作答即可通过）
+## 5. 引申（本最小模型 → 更真实的外核 / libOS）
+
+本课把"磁盘"简化成 `NBLK=16` 个 4 字节块、两个 libOS 是写死的两种布局、内核只做越界+重叠两关、没有 secure binding 也没有资源回收。按兴趣可沿这些方向深入：
+
+1. **加 secure binding / UDF**：实现外核真正的精髓——把 libOS 的元数据解释逻辑做成"下载进内核、由内核校验的 untrusted deterministic function"（如包过滤的 DPF），让内核无需理解抽象也能安全多路复用，对照 Xok/Aegis。
+2. **把 libA/libB 扩成完整 fs**：在发放的块上建真的 inode + 目录 + free-list（对照 XN / C-FFS），让"同样资源、不同抽象"从两种布局升级成两套真文件系统，跑真正的 `create/read/write`。
+3. **可见资源回收（visible revocation）**：实现 exo 主动 repossess 已发块、并通过 upcall 通知 libOS 让其优雅交还——这是外核区别于"一发了之"的关键机制。
+4. **多路复用不止磁盘**：把 `exo_alloc` 的思路推广到 CPU 时间片（time-slice donation）、物理页、网卡帧，体会外核"只发裸资源 + 保护检查"的统一性。
+5. **接 MIT jos**：把本模型对到 6.828 jos 的 `sys_page_alloc`/`sys_page_map`——内核给你一个物理页却不给 `malloc`，亲手在 libOS 侧拼出堆/mmap。
+6. **看思想的现代回声**：对照 DPDK（用户态绕过内核网络栈）、SPDK（用户态块设备）、eBPF（把受限代码安全下放进内核执行）——外核没成主流，但"机制下沉、策略上移"活在它们身上。
+
+## 6. 思考题（`essay/THINKING.md` 作答即可通过）
 
 1. 「内核当裁判不当独裁者」是什么意思？外核为什么这么设计、代价是什么？（对比宏内核强加抽象）
 2. Aegis / Xok / jos 怎么把 OS 抽象交给 libOS？用本 demo 的 `exo_alloc` + libA/libB 举例。

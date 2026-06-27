@@ -91,7 +91,18 @@ labctl hint forms/F4-unikernel      # 卡住看提示
 - 失败会打印含 `FAIL` 的诊断行（如 `TRAP_LEAK_FAIL` 直接调用却产生陷入、
   `SPECIALIZE_BLOAT_FAIL` 特化没让镜像变小）。`TRAP_COST`/`IMAGE_SIZE` 是信息行，非判据。
 
-## 5. 思考题（`essay/THINKING.md` 作答即可通过）
+## 5. 引申（本最小模型 → 真实 Unikernel）
+
+本课用"陷入计数器"模拟模式切换、用"模块表 size 累加"模拟镜像裁剪、用普通函数调用模拟链接——没有真编译期裁剪、没有真启动、没有真零陷入。按兴趣可沿这些方向把直觉做"真"：
+
+1. **真编译期特化**：用 Unikraft 的 Kconfig 真裁微库，或在 Rust 里用 `cargo` feature flags 做条件编译，把 `image_symbols` 的"符号计数"换成 `size`/`bloaty` 量出的真实二进制字节数。
+2. **真零陷入的 no_std 内核**：用 `#![no_std]` Rust 写一个 HermitOS 风格的最小 unikernel，app 直接 `call` OS 函数、无 `ecall`，再写一个 syscall 版做对照，用 `rdcycle` 量出"那道陷入墙"的真实开销。
+3. **真启动 + 冷启动测量**：把镜像跑进 QEMU `microvm` 或 Firecracker，测毫秒级冷启动，验证思考题 3 里"一镜像一应用、极小攻击面"为何命中 serverless/FaaS。
+4. **类型驱动裁剪**：对照 MirageOS 用 OCaml functor 在编译期选后端（哪种网络栈/存储），体会比"开关 bit"更强的、类型系统保证的特化。
+5. **把隔离加回来**：unikernel 最大短板是零隔离（思考题 1）。研究补救方案——intra-unikernel isolation 用 Intel MPK/PKU 把单地址空间切成多 compartment，让一个组件越界不至于毁掉整镜像。
+6. **capstone 接 FaaS**：把 `IMAGE_PASS` 那个"app+OS 一镜像"包成一个真的 serverless 函数（如 Unikraft + Firecracker），完整体会"一镜像一应用"的部署形态。
+
+## 6. 思考题（`essay/THINKING.md` 作答即可通过）
 
 1. Unikernel 的 `app→OS` 为什么是「直接函数调用、零陷入」？这省掉了传统系统调用的哪些开销？又因此**失去**了什么（提示：保护边界 / 隔离 / 单应用故障域）？
 2. 为什么「单应用」是「编译期特化裁剪」能成立的前提？拿 Unikraft 的 88 个微库 / MirageOS 的类型驱动裁剪举例：裁掉未用子系统换来了什么（镜像大小 / 启动时间 / 攻击面），失去了什么（通用性 / 复用）？

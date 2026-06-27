@@ -66,7 +66,19 @@ labctl hint improper/07-ipc     # 卡住看提示
   把竞态/原子性的心智模型保留下来，免去非确定性并发的调试地狱。软件握手另用
   `std::thread`+原子（Rust）/`pthread`+`stdatomic`（C）跑一遍真·两执行流。
 
-## 4. 思考题（`essay/THINKING.md` 作答即可通过）
+## 4. 引申（可扩展性：从「涂黑板」原语到真实同步设施）
+
+本课把 IPC 的地基压缩成 8 个纯函数 + 一块 32-bit 控制字，并用**确定性交错调度**模拟并发（而非真抢占），把竞态/原子性的心智模型留下、把非确定性并发的调试地狱省掉。想把它推向真实内核，按兴趣选：
+
+1. **自旋锁升级为阻塞锁**：本课 `tas` 拿不到锁只能反复试（自旋）。实现一条「拿不到就挂到等待队列、`up` 时 `wakeup`」的阻塞路径，对照 rcore `MutexSpin` vs `MutexBlocking`、Linux **futex**（用户态快路径 + 内核态慢路径）——这正是思考题 2 的落地。
+2. **从 `test_and_set` 到 `lr.sc`/CAS**：`tas` 在 SMP 下有「拿到锁前的总线争用」问题。换成 RISC-V `lr.sc`（load-reserved/store-conditional）或 `amoswap`，实现 **CAS** 并用它搭无锁栈/队列，体会 ABA 问题与 `compare_exchange`；再加 `MCS`/`ticket` 锁解决自旋锁的公平性与缓存行乒乓。
+3. **补内存序**：本课「先写 RESULT 再置 DONE」是手工保证的顺序（思考题 1）。在软件侧真的用 `Ordering::Release/Acquire`（Rust）/ `atomic_thread_fence`（C），并把顺序故意写反观察 `EARLY_FAIL`，理解 release-acquire 与 `fence` 在弱内存模型（ARM/RISC-V）下的必要性。
+4. **DONE 位升级为真设备/中断**：把 A 的「死盯黑板」轮询改成中断驱动——B（设备）置 `DONE` 后触发中断，A 在 ISR 里被唤醒。对照 virtio notify、MMIO done bit、xv6 `sleep/wakeup`，体会 busy-poll vs 中断的取舍。
+5. **从共享内存到消息传递**：本课是「共享状态 + 原子位」的最朴素 IPC。在其上实现一个有界环形缓冲的 **pipe/channel**（生产者-消费者 + 计数信号量），再对照「共享内存 IPC」与「消息传递 IPC」（Mach port / seL4 IPC / Go channel）两种范式的安全性与性能差异。
+6. **真·两执行流压测**：把确定性交错换成真 `std::thread`+原子 / `pthread`+`stdatomic` 跑大量迭代，用 `NAIVE_RACE`（非原子读改写）复现真实丢更新，再用你的原子版修复——把「为什么需要原子」从模拟变成可观测的数据竞争。
+7. **硬件侧做成带握手的 FIFO**：把组合「IPC ALU」扩成时序电路，给 `DONE`/`BUSY` 配 valid-ready 握手，做一个跨时钟域的同步 FIFO，体会硬件里「原子置位」靠的是单 bit 寄存器不可能被读到中间态（思考题 3）。
+
+## 5. 思考题（`essay/THINKING.md` 作答即可通过）
 
 1. 为什么 B 必须「先写 `RESULT` 再置 `DONE`」？若反过来，A 可能读到什么垃圾值？（内存序/可见性、`fence`、release-acquire）
 2. 自旋锁与阻塞锁各自浪费/节省了什么？临界区很短/很长、单核/多核分别该用哪个？（rcore `MutexSpin` vs `MutexBlocking`）

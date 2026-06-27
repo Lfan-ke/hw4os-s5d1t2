@@ -69,7 +69,18 @@ labctl hint forms/F2-microkernel     # 卡住看提示
 - 单线程确定性模型：harness 喂固定向量，逐项断言。把「能力 / 隔离」的心智模型留下来，
   免去真并发的非确定性调试。
 
-## 5. 思考题（`essay/THINKING.md` 作答即可通过）
+## 5. 引申（本最小模型 → 更真实的微内核）
+
+本课把"过内核"简化成了一次普通函数调用、能力表简化成定长数组、服务跑在同一线程的确定性向量里——没有真地址空间、没有真上下文切换。按兴趣可沿这些方向深入：
+
+1. **把"内核 call"换成真同步 IPC**：实现 seL4 风格的 `Call`/`ReplyRecv`——真上下文切换、寄存器传 4-word 消息、切地址空间，把本课"零成本的 dispatch"还原成有代价的跨态调用，亲手测出那"一跳"到底多贵。
+2. **加 IPC fastpath**：在同步 IPC 上做快路径（跳过完整调度器、寄存器直接传消息、直接切到 receiver），复现思考题 2 里"微内核慢是 1990 年代旧账"——把往返压到几百 cycle / <1μs。
+3. **能力表升级成 CSpace**：把 `Cap{rights,target}` 数组扩成 seL4 的多级 CNode + cap 派生树（`mint`/`derive`/`revoke`），实现能力撤销（revoke 整棵子树），对照 Zircon 的 handle table + `zx_rights_t`。
+4. **服务进真地址空间 + 真崩溃**：把 echo/store 放进独立进程（`fork`/`mmap`），用真 `SIGSEGV` 模拟服务崩溃，再写一个 MINIX 3 风格的 reincarnation server 重启它而内核不动——把 `DenyOffline` 升级成真正的"崩了再活"。
+5. **给 endpoint 加 badge**：让多个客户端共享一个 endpoint，用 badge 区分调用者，体会 seL4 如何在最小机制上承载复杂多客户端服务。
+6. **形式化一小步**：对 `cap_check` 的不变量"无能力则资源零副作用"做 model checking（如 TLA+/Kani），呼应 seL4 用 refinement 三层精化证明 9 千行内核。
+
+## 6. 思考题（`essay/THINKING.md` 作答即可通过）
 
 1. capability 与 POSIX `fd` 都是「整数句柄」，本质区别在哪？（不可伪造对象引用 + 自带 rights vs 进程私有下标 + 环境权威）
 2. Tanenbaum–Linus 之争里「微内核太慢」的论据是什么？为什么今天看是旧账？（IPC fastpath：跳过调度器、寄存器传消息、< 1μs）

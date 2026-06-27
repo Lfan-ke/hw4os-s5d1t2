@@ -52,9 +52,23 @@ RENDER_PASS
 ALL_PASS
 ```
 
-## 3. 引申（不在本实验内做）
+## 3. 完成标准 (DoD)
 
-真正的 S12 还要接 **virtio-GPU**：在 framebuffer 内存上建好资源（`RESOURCE_CREATE_2D` + `RESOURCE_ATTACH_BACKING`），`SET_SCANOUT` 绑到扫描输出，每帧 `TRANSFER_TO_HOST_2D` + `RESOURCE_FLUSH` 把脏区刷到 host；再往上封装控件/布局做成 GUI 库，把 html/css 的盒模型（margin/padding/flow）完整转译。本实验把"接外设"省掉，聚焦绘制与转译的**逻辑**正确性。
+- [ ] `fb_fill_rect` 用双重循环逐像素调 `fb_point`，矩形部分出界时靠裁剪不崩。
+- [ ] `parse_div` 能在 `>` 前定位 `color:` 取色、从 `>` 后逐字符 `fb_char` 绘制到下一个 `<`，每字符 `x += 8`、每行 `div_y += 9`。
+- [ ] `make -C kernel run` 输出 `DRAW_PASS`、`RENDER_PASS`、`ALL_PASS`，两个 FNV-1a 校验和与期望值**逐位**相符。
+- [ ] 全程无 `FAIL` / `panic` / `UNEXPECTED`。
+
+## 4. 引申
+
+本实验为聚焦“绘制与转译的逻辑正确性”做了大量简化：framebuffer 只是内存数组、每像素 1 字节调色板索引、字模写死 8x8、布局是固定坐标、看图用校验和代替。想做得更真实，可按兴趣往这些方向深入：
+
+1. **接真显示：virtio-GPU**。把 `fb[]` 当资源在 host 侧建好（`RESOURCE_CREATE_2D` + `RESOURCE_ATTACH_BACKING`），`SET_SCANOUT` 绑到扫描输出，每帧 `TRANSFER_TO_HOST_2D` + `RESOURCE_FLUSH` 把脏区刷出去——这时校验和就换成肉眼可见的真画面。对照 Linux 的 **DRM/KMS** 与 fbdev/fbcon。
+2. **像素格式与双缓冲**。1 字节调色板索引升级成 **RGB565 / RGBA8888** 真彩色；加 **double buffering**（前后台帧切换）消除撕裂，再加**脏矩形**只刷变化区域而非整帧。
+3. **完整 CSS 盒模型与排版**。现在 `<div>` 只是固定行高换行；扩成 margin/padding/border + 正常流（flow）/换行/嵌套，做一个最小布局引擎，把 html/css 子集真正“排版”而非定点画。
+4. **真字体渲染**。8x8 位图字模 → 接 **TrueType**（FreeType 风格）+ 抗锯齿 + UTF-8/CJK 字形，处理字间距与基线。
+5. **上层 GUI 栈**。在原语之上封装控件库（按钮/文本框）、事件循环与窗口**合成器（compositor）**，对照 **Wayland** 的合成模型或 X11 的绘图模型。
+6. **输入与交互**。接 virtio-input（键盘/鼠标），把“画一帧”变成“响应事件重绘”，形成最小交互式 GUI。
 
 ## 文件
 

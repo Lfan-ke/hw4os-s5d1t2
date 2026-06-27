@@ -60,7 +60,18 @@ labctl hint improper/10-memory     # 卡住看提示
 - [ ] `UNIFIED_PASS` / `DECODE_PASS` + `ALL_PASS`；硬件 0 warning。
 - [ ] C/Rust 任一全过即必修达成；另一条与硬件、essay 多过计辅助分。
 
-## 4. 思考题（essay · `essay/THINKING.md` 作答即可通过）
+## 4. 引申：从最小分层到真实内存子系统
+
+本课为建立心智把"快/慢两块设备 + 几行换页"压到极简。想更接近真实内存子系统，可沿这些方向深入：
+
+1. **真页替换算法**：把单 dirty 位的 FIFO/Clock 换成精确 LRU、Second-Chance、WSClock 或 Clock-Pro（access+dirty 两位），再对照 Linux 的 active/inactive 双 LRU 链表 + `kswapd` 水位线（low/high watermark）触发回收，量化各算法在本课工作集下的缺页率差。
+2. **真 swap 槽分配器**：把 `slot = vpn` 直映射换成空闲槽位图/空闲链，支持多 swap 区、swap 满处理、swap readahead 预读与簇式（cluster）回写，理解为何 Linux swap 用 cluster 而非逐页。
+3. **多级页表 + 软件 TLB**：把数组式单级 PTE 升级成 SV39 三级表（衔接 12 课），在 `translate` 前加一层软件 TLB 缓存并统计命中率，看 TLB 如何摊薄走表成本。
+4. **异步块层 + page cache**：把同步 `blk_read/write` 换成带 DMA/中断的块设备，`stage_in/out` 走 page cache + 后台 writeback 线程，显式区分 clean/dirty/writeback 三态（衔接驱动/fs 课）。
+5. **崩溃一致性**：把 `sync_all` 拆成"数据屏障 + 元数据屏障"两步，做 ordered/journaled 回写，在两步之间注入掉电点，验证恢复后是否一致——这正是 `fsync` 与 ordered journaling 要解决的问题。
+6. **N 级分层内存**：把两块设备扩成 L1/L2/DRAM/CXL/NVMe 多级并填真实延迟数，做 NUMA/CXL 的冷热页迁移与 `numa_balancing` 式自动 promote/demote，理解"分层内存"在数据中心的现实意义。
+
+## 5. 思考题（essay · `essay/THINKING.md` 作答即可通过）
 
 1. 工作集略大于帧数 vs 远大于帧数，性能差异为何是"断崖"（**thrashing**）？联系 `swappiness`/OOM 与"内存只是慢设备缓存"。
 2. 为什么"持久"必须 `sync`/write-back，且回写存在**顺序**要求（数据页 vs 元数据）？`sync_all` 前掉电会怎样？联系 `fsync`/ordered journaling。

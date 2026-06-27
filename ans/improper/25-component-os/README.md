@@ -77,7 +77,32 @@ labctl hint improper/25-component-os    # 卡住看提示
   `SWAP_FAIL` 换实现后不变量被破坏、`COMPOSE_MONO_FAIL` 形态没装对组件）。
   `FORM_UNI`/`FORM_MONO`/`HOTSWAP` 是信息行，非判据。
 
-## 5. 思考题（`essay/THINKING.md` 作答即可通过）
+## 5. 引申：从「函数指针玩具」到真实组件化内核
+
+本课把组件化压缩成最小可演示形态：三个组件、运行期 **vtable（函数指针）** 组装、
+特性开关只是 `KernelConfig` 里几个枚举字段、不变量只验「不重叠 + 跑完」。真实的 arceos
+组件化在三个维度上比这丰满得多，按兴趣往下走：
+
+1. **把组装从运行期搬到编译期**：本课 `build_kernel(cfg)` 在运行期用函数指针选实现；真实
+   arceos 用 **cargo features + crate 依赖图**在**编译期**就把组件 wire 死（没选的组件根本不进
+   二进制）。试着用 Rust **trait 对象**或泛型替换裸函数指针，体会「零成本抽象」与 vtable 间接调用的取舍。
+2. **加更真实的组件实现**：分配器从 `bump`/`freelist` 扩到 **buddy（伙伴系统）/ slab**（对照
+   arceos `axalloc`、Linux SLUB）；调度器从 `fifo`/`rr` 扩到**优先级 / CFS / EDF**（对照 `axtask`）。
+   关键是：只要组件契约（接口 + 不变量）不变，换实现不动其余系统——这正是 `SWAP` 想说的事。
+3. **补缺的组件，拼出更多形态**：加 `axfs`（文件系统）、`axnet`（协议栈，接上 21/23 课）、
+   `axdriver`（设备）。再加一种 `KernelConfig` 拼出 **hypervisor 形态**（对照 arceos 的 `axvm`/
+   AxVisor），印证母题「同一套组件、不同拼法拼出 unikernel / 宏内核 / hypervisor」。
+4. **把 syscall 边界做真**：本课 `syscall_boundary` 只是 `traps += 1` 的计数；真实形态差别在
+   **地址空间隔离 + 特权级切换**（unikernel app/OS 同 ring，宏内核要 U/S 态陷入）。对照 `proper/S8`
+   的真实 syscall、forms-F4 的「同地址空间零陷入」，把那道「陷入墙」从计数器换成真页表/特权级。
+5. **接口稳定性与版本治理**：组件能热替换的前提是**契约稳定**。看看 arceos 怎么用
+   `crate_interface`（声明接口与实现解耦）、版本号约束依赖；想想契约一旦要改（加个方法）时
+   全体实现怎么平滑迁移——这是「组件化」从玩具走向工程的真正难点。
+6. **读一个真项目落地**：**StarryOS** 在 arceos 组件之上拼出宏内核 + Linux 兼容层——同一套
+   `axalloc/axtask/axhal`，换个拼法、补一层 syscall 翻译就成了能跑 Linux 程序的 OS。对照本课
+   `make_*` ↔ feature 选实现、`build_kernel` ↔ 依赖图组装、`SWAP` ↔ 替换一个 mod。
+
+## 6. 思考题（`essay/THINKING.md` 作答即可通过）
 
 1. 「内核组件化 + cargo features 组装」相比「从头手搓一个内核」，省了什么、换来了什么？为什么同一套组件能拼出 unikernel / 宏内核 / hypervisor 三种形态？
 2. 组件化是**方法论**，forms（F1~F5 那些架构形态）是**结果**。请说明「unikernel 只是一种组装结果」：对照 forms-F4，本课的 `UNI = {最小组件 + 无 syscall 边界}` 与 F4 的「同地址空间、零陷入」是不是一回事？

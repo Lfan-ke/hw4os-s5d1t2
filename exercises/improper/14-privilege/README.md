@@ -112,3 +112,14 @@ make -C hw/bsv sim   # BSV 仿真
 - [ ] 能在波形 / 拓扑里指出哪根线 = 特权比较器、哪些触发器 = `cur_priv`/`saved_priv`/`feat_en`。
 - [ ] 能口述"下放权=写低位（自由）、提权=必须经 ECALL 门（陷入）、开功能=置使能位"三句话。
 - [ ]（essay）三道思考题写进 `THINKING.md`。
+
+## 8. 引申：从「几根线」到真实特权架构
+
+本课把陷入抽象成单根 `trap` 线、三态状态字只用 5 位，刻意抽掉了 `mtvec`/`mcause`/委托/中断。把这几根线"接全",可往这些方向深入：
+
+1. **补全陷入机制**：把单 `trap` 线扩成"跳 `mtvec` + 写 `mcause`/`mepc`/`mtval` + 按 `medeleg`/`mideleg` 委托到 S 态"，实现真正的分级陷入下放（衔接正经赛道 S2 trap 内核）。
+2. **CSR 文件化**：把 5 位状态字铺成真实 `mstatus`/`sstatus` 位域（`MIE`/`SIE`/`MPP`/`SPP`/`MPRV`/`SUM`/`MXR`），实现 `mret` 时 `MIE←MPIE`、`MPP←U` 的中断使能栈与降权语义。
+3. **加第四级 + 虚拟化**：按 RISC-V H 扩展加 `VS`/`VU` 态与 `hstatus`、二级地址翻译，亲手验证"特权级数量↑ → 保存前态位宽↑、陷入处理复杂度↑"（呼应思考题 2）。
+4. **门控具体化**：把抽象 `feat_en` 落成真实使能——`satp` 开 MMU、PMP/PMA 物理内存保护——做成"特权够 **且** 区域允许"的双重与门，对照 seL4 的 capability 检查。
+5. **嵌进取指-执行核**：把 `step` 放进一个最小取指-译码-执行循环，让 `ecall`/`sret` 成为真指令、U 态非法指令真正打 illegal-instruction（直接对照 rcore `03priv_inst`/`04priv_csr`）。
+6. **中断与抢占**：在比较器之外加中断 pending/enable 矩阵与优先级、`WFI`，做时钟中断驱动的抢占式切换，看"特权 + 中断"如何共同构成内核的控制权。

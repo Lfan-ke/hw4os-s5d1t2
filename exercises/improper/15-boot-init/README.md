@@ -79,6 +79,17 @@ addr==DATA(4)  : ready ? (data_raw ^ 0xCAFE) : 0x0BADB007
 - [ ]（辅助分）`essay/THINKING.md` 说清“为何前置、为何 magic-unlock、CLKDIV=0 为何乱、
       为何链接到 main 之前”。
 
-## 5. 思考题
+## 5. 引申：从四步握手到真实启动链
+
+本课把启动压成"敲 4 个 MMIO 寄存器 + 模拟 `.init_array`"，刻意省掉了汇编入口、多级引导与真实时钟序列。想接近真实开机流程，可往这些方向深入：
+
+1. **真 `entry.S` + `linker.ld`**：把 `register_inits`/构造器换成真实 `_start` 汇编（设栈指针、清 `.bss`、跳 `rust_main`），亲手写 `linker.ld` 的 `ENTRY`/段顺序与加载地址（衔接正经赛道 S1 SBI 引导）。
+2. **多级引导接力**：把单段握手扩成 BootROM → SBI(OpenSBI/RustSBI) → kernel 的多级接力，按 RISC-V 约定用 `a0=hartid`、`a1=dtb 指针` 传参，理解每一级"置位"到哪、把什么交给下一级。
+3. **真时钟/PLL 序列**：把 `CLKDIV` 换成 RCC 时钟使能 + PLL 配置 + lock 轮询，并给轮询加超时与退避——把 `BADCLK` 从"死等"变成可恢复的故障路径。
+4. **初始化依赖图**：多个外设彼此有先后依赖时，把线性四步换成拓扑排序的初始化图，对照 Linux 的 `initcall` 分级（early/core/device…）与 deferred probe。
+5. **安全启动**：给 `UNLOCK` 的 magic 加签名校验、一次性熔丝(eFuse)、写保护锁存位（`LE`），串起 measured/secure boot 的信任链。
+6. **忙等 → 中断**：把轮询 `READY` 换成"就绪中断 + 看门狗超时"，并讨论为何早期启动阶段常被迫忙等（中断控制器/时钟尚未就绪）。
+
+## 6. 思考题
 
 见 `essay/THINKING.md`（15.1 观察坏启动 + 15.5 启动哲学）。作答即通过。

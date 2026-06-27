@@ -66,7 +66,31 @@ labctl hint improper/23-epoll     # 卡住看提示
   - **ET 不武装**：报告后摘除，要等 `edge_ready` 再判出一次新沿才重新入链。
 - `select_scan`（已给）：遍历全部 n 个 fd，计数器 `+= n`。两个计数器之比即 O(ready) vs O(n)。
 
-## 4. 思考题（`essay/THINKING.md` 作答即可通过）
+## 4. 引申：从「就绪态玩具」到真实事件驱动栈
+
+本课只保留了 epoll 的**骨架**：一个 `readable` 位、一条就绪链表、一个 `scan` 计数器，
+单线程、无真实 fd、无系统调用、`set_readable` 由 harness 喂。真实事件循环里被省掉的那些，
+恰恰是写高并发服务器最容易踩坑的地方。按兴趣挑一条深入：
+
+1. **换成真 syscall 跑通一遍**：用真的 `epoll_create1/epoll_ctl/epoll_wait`（C）或
+   Rust **mio** 监听一个 TCP `listener`，验证「未注册的 fd 不会被返回」「ET 只在沿上通知一次」
+   在真内核里也成立。对照 BSD 的 **kqueue**、Windows 的 **IOCP**。
+2. **把 ET 的坑踩实**：写一个 ET 模式的 echo 服务器，故意**只 read 一次不读到 `EAGAIN`**，
+   观察「剩余数据再也收不到通知」的挂起 bug——这正是本课 `edge_ready` 上升沿语义的现实代价。
+   再补上「循环读到 EAGAIN」修好它。
+3. **补缺失的内核侧机制**：`EPOLLONESHOT`（报告后自动摘除兴趣集，多线程取事件防重复）、
+   `EPOLLRDHUP`（对端半关闭）、`EPOLLEXCLUSIVE`/多线程 accept 的**惊群 (thundering herd)**——
+   本课单线程无锁，加上多 worker 才会暴露这些。
+4. **接一个真的 reactor 事件循环**：把就绪集喂给一组回调（handler），做成 Nginx/Redis 那样的
+   单线程 reactor；或对照 Rust **tokio**（mio + waker + Future）看「就绪事件」如何被翻译成
+   `async/await` 的唤醒。回扣 `proper` 里的异步执行器。
+5. **就绪式 vs 完成式**：把同一个 echo 服务器改用 **io_uring**（提交/完成两条环形队列），
+   体会「epoll 告诉你『可以读了』、io_uring 告诉你『已经读完了』」的范式差异，以及零拷贝/批量提交。
+6. **数据结构对照**：本课 interest 是个数组、ready 是条链表；Linux 真实实现里 interest 集合是
+   **红黑树**（`epoll_ctl` O(log n) 增删）、ready 是双向链表 + 就绪回调 `ep_poll_callback`。
+   想想 fd 上万、增删频繁时为什么需要平衡树而不是数组。
+
+## 5. 思考题（`essay/THINKING.md` 作答即可通过）
 
 1. C10k 问题：为什么「一连接一线程 + 阻塞 read」扛不住一万连接？epoll 凭什么能扛？
 2. select/poll 是 O(n)、epoll 是 O(ready)，差别从哪来？（兴趣集常驻内核、就绪回调挂链表）
