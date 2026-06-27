@@ -1,0 +1,34 @@
+id      = "S17-virt"
+title   = "正经·S17 · 虚拟化：H 扩展两阶段地址转换 + trap-and-emulate（软件模型）"
+track   = "proper"
+require = 1
+env     = "qemu-virt"
+weight  = 1
+
+[[variant]]
+id    = "kernel-c"
+axis  = "software"
+lang  = "c"
+dir   = "kernel"
+build = "qemu-virt"
+
+[[variant]]
+id    = "essay"
+axis  = "essay"
+lang  = "text"
+dir   = "essay"
+build = "essay"
+
+[judge]
+expect    = ["TWOSTAGE_PASS", "TRAP_EMU_PASS", "ALL_PASS"]
+forbid    = ["FAIL", "panic", "UNEXPECTED"]
+timeout_s = 20
+
+[[hint]]
+text = "labctl 的 QEMU(-bios default) 不暴露 H 扩展给 S 态，故本实验是纯软件模型：在 S 态内核里用普通数组/指针搭两套二级页表与一次跨特权边界的函数调用，模拟两阶段翻译与 trap-and-emulate。"
+[[hint]]
+text = "两阶段：guest VA --[stage-1 / vsatp 页表]--> guest PA --[stage-2 / hgatp 页表]--> host PA。stage-1 叶 PTE 的 PPN 是客户机物理帧号(GPPN)；stage-2 把 GPPN 当成被翻译的页号，叶 PTE 的 PPN 是宿主物理帧号(HPPN)。"
+[[hint]]
+text = "学生填 stage2_walk：照搬 stage1_walk 的两级查找——pte1=g_root[i1] 取下级表，pte0=l0[i0] 取叶，校验 PTE_V 与 PTE_LEAF，hppn=pte0>>10，返回 (hppn<<12)|off。"
+[[hint]]
+text = "trap-and-emulate（已给）：guest 在 VS 态读被虚拟化的 CSR 会陷入 HS 态，VMM 解码 CSR 号后回填一个伪值（VMID、被偏置的虚拟 time），guest 看不到宿主真实硬件值。"

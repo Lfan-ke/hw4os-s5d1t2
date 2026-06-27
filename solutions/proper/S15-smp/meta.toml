@@ -1,0 +1,34 @@
+id      = "S15-smp"
+title   = "正经·S15 · SMP 安全与读写锁：多核真并行下的原子互斥"
+track   = "proper"
+require = 1
+env     = "qemu-virt"
+weight  = 1
+
+[[variant]]
+id    = "kernel-c"
+axis  = "software"
+lang  = "c"
+dir   = "kernel"
+build = "qemu-virt"
+
+[[variant]]
+id    = "essay"
+axis  = "essay"
+lang  = "text"
+dir   = "essay"
+build = "essay"
+
+[judge]
+expect    = ["SPINLOCK_PASS", "RWLOCK_PASS", "ALL_PASS"]
+forbid    = ["FAIL", "panic", "UNEXPECTED"]
+timeout_s = 20
+
+[[hint]]
+text = "OpenSBI 的引导 hart 未必是 0 号。别按 hartid 硬编角色：对 0..NHART-1 全部尝试 hart_start（对自身的启动会被 SBI 拒绝、无害），worker 角色用一个原子 fetch_add 派发的唯一序号来分。"
+[[hint]]
+text = "副 hart 经 SBI HSM hart_start(EID=0x48534D, fid=0, a0=hartid, a1=start_addr, a2=opaque) 唤醒，落在 start_addr 时 satp=0、a0=hartid。它不走 _start，必须在汇编入口自备 per-hart 栈，否则几个核共用一个栈会互相踩烂。"
+[[hint]]
+text = "自旋锁 acquire 用 __sync_lock_test_and_set（amoswap.w）、release 用 __sync_lock_release；读写锁用 __sync_bool_compare_and_swap 把 state 在 0/读者数/-1 之间原子转换。关中断在 SMP 不再够用——它挡不住别的核同时改同一物理内存。"
+[[hint]]
+text = "读写锁优于自旋锁，体现在'读多写少'：多个读者可同时持有读锁并行跑（看 max_concurrent_readers>1），而自旋锁会把读者串行化成 1。读锁还保证读者看到的是写者更新前/后的一致快照，绝不会读到半更新（torn_reads 必须为 0）。"

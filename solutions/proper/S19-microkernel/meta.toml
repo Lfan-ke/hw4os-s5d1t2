@@ -1,0 +1,32 @@
+id      = "S19-microkernel"
+title   = "正经·S19 · 微内核 vs 宏内核：一个服务两种形态（IPC 请求/应答）+ 可插拔驱动收尾"
+track   = "proper"
+require = 1
+env     = "qemu-virt"
+weight  = 1
+
+[[variant]]
+id    = "kernel-c"
+axis  = "software"
+lang  = "c"
+dir   = "kernel"
+build = "qemu-virt"
+
+[[variant]]
+id    = "essay"
+axis  = "essay"
+lang  = "text"
+dir   = "essay"
+build = "essay"
+
+[judge]
+expect    = ["MACRO_PASS", "MICRO_PASS", "DRIVER_SYS_PASS", "ALL_PASS"]
+forbid    = ["FAIL", "panic", "UNEXPECTED"]
+timeout_s = 20
+
+[[hint]]
+text = "同一份服务核心（service.c 的 svc_create/svc_read），宏内核里客户直接 call、零中介；微内核里把它放进一个服务任务，客户只能发消息请求。两路跑同一份工作负载（svc_demo_req 生成），结果必须逐项一致——区别只在“怎么把请求送过去、把结果取回来”。"
+[[hint]]
+text = "IPC 单槽通道 = 一格消息 + full 标志：send 满则 ipc_yield() 等对端取走、写入后置 full=1 再让出；recv 空则 ipc_yield() 等对端送来、读出后清 full=0。请求通道 client→server、应答通道 server→client，一来一回就是一次 RPC。每次 send/recv 记一“跳”，宏内核 0 跳、微内核 32 跳——这就是隔离换来的 IPC 开销。"
+[[hint]]
+text = "驱动注册表 = 一张 {name, read_fn} 表：driver_register 找第一个空槽存名字与函数指针；driver_find 按名字线性查、命中返回指针。新增设备只需注册、内核派发逻辑不改（开闭原则）。这是 S6 驱动模型的收尾形态。"

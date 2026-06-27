@@ -1,0 +1,34 @@
+id      = "S9-libc"
+title   = "正经·S9 · 极简 libc：crt0 / syscall 封装 / bump malloc / 迷你 printf"
+track   = "proper"
+require = 1
+env     = "qemu-virt"
+weight  = 1
+
+[[variant]]
+id    = "kernel-c"
+axis  = "software"
+lang  = "c"
+dir   = "kernel"
+build = "qemu-virt"
+
+[[variant]]
+id    = "essay"
+axis  = "essay"
+lang  = "text"
+dir   = "essay"
+build = "essay"
+
+[judge]
+expect    = ["CRT0_PASS", "MALLOC_PASS", "PRINTF_PASS", "ALL_PASS"]
+forbid    = ["FAIL", "panic", "UNEXPECTED"]
+timeout_s = 20
+
+[[hint]]
+text = "crt0(crt0.S 的 user_start) 是 U 态程序真正入口：内核 run_user 后从这里开始。它只做两件事——call main，再把返回值交给 exit。不要在 crt0 里直接碰内核函数。"
+[[hint]]
+text = "bump malloc：把游标 heap_off 向上对齐到 8 字节（(off+7)&~7），越界(off+n>sizeof(heap))返回 0，否则记下 &heap[off]、heap_off+=n、返回该指针。永不 free。"
+[[hint]]
+text = "printf 的 %d/%x：先把整数按位取余/取低 4 位倒着塞进临时数组（最低位先得到），再逆序倒出到输出缓冲。%d 记得先处理负号（注意 INT_MIN：用 -(long)v 再转 unsigned 防溢出）。"
+[[hint]]
+text = "用户侧只认 ulib.h，所有服务（输出/退出）都经 write/exit 的 ecall 落到内核——这正是『libc 把裸 syscall 封装成函数』。printf 自己不碰控制台，而是格式化到缓冲后 write(1,buf,n)。"

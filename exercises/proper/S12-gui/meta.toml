@@ -1,0 +1,34 @@
+id      = "S12-gui"
+title   = "正经·S12 · 简易 GUI：软件 framebuffer 与 html/css 子集转译绘制"
+track   = "proper"
+require = 1
+env     = "qemu-virt"
+weight  = 1
+
+[[variant]]
+id    = "kernel-c"
+axis  = "software"
+lang  = "c"
+dir   = "kernel"
+build = "qemu-virt"
+
+[[variant]]
+id    = "essay"
+axis  = "essay"
+lang  = "text"
+dir   = "essay"
+build = "essay"
+
+[judge]
+expect    = ["DRAW_PASS", "RENDER_PASS", "ALL_PASS"]
+forbid    = ["FAIL", "panic", "UNEXPECTED"]
+timeout_s = 20
+
+[[hint]]
+text = "framebuffer 就是内核里一块二维像素数组（FB_H*FB_W 字节，每像素 1 字节调色板索引）；真机里它会被 virtio-GPU/显存映射扫描到屏幕，本实验只在内存里画，用校验和代替肉眼看图。"
+[[hint]]
+text = "fb_fill_rect 用双重循环逐像素调 fb_point(x+dx, y+dy)；fb_point 自带越界裁剪，所以矩形可以部分出界而不崩。"
+[[hint]]
+text = "解析 <div style=\"color:NAME\">TEXT</div>：先在 '>' 之前找到 color: 读出颜色名，再从 '>' 之后逐字符 fb_char 直到遇见下一个 '<'（即 </div>），每个字符 x 前移 8 像素。"
+[[hint]]
+text = "8x8 字模：每字符 8 字节，行 r 的 bit(7-col) 置位就在 (x+col, y+r) 画点；未知字符当空格即可。校验和用 FNV-1a，错一个像素整段值就变，便于定位绘制 bug。"

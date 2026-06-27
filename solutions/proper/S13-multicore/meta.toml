@@ -1,0 +1,34 @@
+id      = "S13-multicore"
+title   = "正经·S13 · 多核启动：SBI HSM 唤醒 hart1 + 直接映射区共享握手"
+track   = "proper"
+require = 1
+env     = "qemu-virt"
+weight  = 1
+
+[[variant]]
+id    = "kernel-c"
+axis  = "software"
+lang  = "c"
+dir   = "kernel"
+build = "qemu-virt"
+
+[[variant]]
+id    = "essay"
+axis  = "essay"
+lang  = "text"
+dir   = "essay"
+build = "essay"
+
+[judge]
+expect    = ["SMP_BOOT_PASS", "SLOT_PASS", "ALL_PASS"]
+forbid    = ["FAIL", "panic", "UNEXPECTED"]
+timeout_s = 20
+
+[[hint]]
+text = "唤醒 hart1：sbi_hart_start(hartid, start_addr, opaque) 走 EID=0x48534D(\"HSM\") fid=0。start_addr 给 hart1_entry（物理地址），目标 hart 以 S 态/satp=0 从那里开跑，入口 a0=hartid、a1=opaque。返回 0 即成功。"
+[[hint]]
+text = "hart1 不能复用 hart0 的 boot_stack，hart1_entry(.S) 已为它备好独立栈 hart1_stack_top；你只需在 hart1_main 里写邮箱。"
+[[hint]]
+text = "共享槽位放内核 .bss（直接映射：satp=0 时地址即物理地址，各 hart 共识）。先写数据后举旗：写 hart_id/交换 slot 后再各置 online/slot_done=1，每步间 smp_fence() 保证可见与顺序。"
+[[hint]]
+text = "为何不用虚拟地址：本阶段没建页表，谈不上「同一虚拟地址映同一物理页」；唯一各 hart 天然共识的就是物理地址。直接映射区把虚拟地址=物理地址，握手才确定。"

@@ -1,0 +1,34 @@
+id      = "S11-net"
+title   = "正经·S11 · 简易协议栈：ARP / IPv4 / UDP 报文构造、校验和与 loopback"
+track   = "proper"
+require = 1
+env     = "qemu-virt"
+weight  = 1
+
+[[variant]]
+id    = "kernel-c"
+axis  = "software"
+lang  = "c"
+dir   = "kernel"
+build = "qemu-virt"
+
+[[variant]]
+id    = "essay"
+axis  = "essay"
+lang  = "text"
+dir   = "essay"
+build = "essay"
+
+[judge]
+expect    = ["ARP_PASS", "IP_PASS", "UDP_PASS", "ALL_PASS"]
+forbid    = ["FAIL", "panic", "UNEXPECTED"]
+timeout_s = 20
+
+[[hint]]
+text = "Internet Checksum（RFC 1071）：把数据看成 16-bit 大端字累加到 32 位，进位回卷进低 16 位，再取反。给定 cksum_accumulate 负责累加、cksum_fold 负责回卷+取反——ip_checksum 直接 fold(accumulate(头,20,0))。"
+[[hint]]
+text = "UDP 校验和覆盖『伪首部 + UDP 头 + 数据』。伪首部 12 字节 = src_ip(4)|dst_ip(4)|0|proto=17|udp_len(2 大端)。先 accumulate 伪首部得 sum，再以该 sum 为初值 accumulate UDP 段（校验和字段为 0），fold。结果若为 0 按 RFC 768 填 0xFFFF。"
+[[hint]]
+text = "校验『合法』的判据是反码和的优雅性质：把校验和字段也算进去，全段折叠应为 0（cksum_fold(...)==0）。udp_parse 里 IP 头、UDP 段各做一次这个判 0 即可，无需把存的校验和取出来反推。"
+[[hint]]
+text = "udp_parse 边界：ihl=(ipframe[0]&0x0F)*4，先查 framelen 够不够 ihl+8 再查 ihl+udp_len；payload=udp+8，paylen=udp_len-8。多字节字段一律 (hi<<8)|lo 手工拼，别直接强转指针（主机小端会读反）。"

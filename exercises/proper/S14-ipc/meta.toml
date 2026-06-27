@@ -1,0 +1,32 @@
+id      = "S14-ipc"
+title   = "正经·S14 · IPC：管道 / 消息队列 / 共享内存握手（协作任务之上）"
+track   = "proper"
+require = 1
+env     = "qemu-virt"
+weight  = 1
+
+[[variant]]
+id    = "kernel-c"
+axis  = "software"
+lang  = "c"
+dir   = "kernel"
+build = "qemu-virt"
+
+[[variant]]
+id    = "essay"
+axis  = "essay"
+lang  = "text"
+dir   = "essay"
+build = "essay"
+
+[judge]
+expect    = ["PIPE_PASS", "MSG_PASS", "SHM_PASS", "ALL_PASS"]
+forbid    = ["FAIL", "panic", "UNEXPECTED"]
+timeout_s = 20
+
+[[hint]]
+text = "环形缓冲三件套 head/tail/count：满=count==容量（写返回0），空=count==0（读返回0）；推进下标用 idx=(idx+1)%容量。pipe 与消息队列同一套心智，只是元素从字节变成定长 struct Msg（逐字节整条拷贝）。"
+[[hint]]
+text = "生产者写满则 ipc_yield() 让出给消费者，消费者读空则 ipc_yield() 让回给生产者——这就是协作式 IPC。两任务在单核轮转，谁阻塞谁让出 CPU，绝不空转霸占。"
+[[hint]]
+text = "共享内存握手（给定）：生产者先把 data/sum 全部写好，fence 之后才置 ready=1；消费者轮询 ready，置位后才读。次序是“数据就绪在前、宣布在后”，对应真实系统 SMP 直接映射区核间共享槽 + 标志位。"

@@ -1,0 +1,34 @@
+id      = "S16-amp"
+title   = "正经·S16 · AMP（大小核）：非对称多处理、角色分派与任务亲和/迁移"
+track   = "proper"
+require = 1
+env     = "qemu-virt"
+weight  = 1
+
+[[variant]]
+id    = "kernel-c"
+axis  = "software"
+lang  = "c"
+dir   = "kernel"
+build = "qemu-virt"
+
+[[variant]]
+id    = "essay"
+axis  = "essay"
+lang  = "text"
+dir   = "essay"
+build = "essay"
+
+[judge]
+expect    = ["ROLE_PASS", "AFFINITY_PASS", "ALL_PASS"]
+forbid    = ["FAIL", "panic", "UNEXPECTED"]
+timeout_s = 20
+
+[[hint]]
+text = "角色分派表 cpu_role[NCORE]：把每颗 hart 映射到大核 ROLE_BIG / 小核 ROLE_LITTLE。约定 hart0 跑调度器必须是大核，整机至少 1 大核 + 1 小核。本机拓扑给 {BIG,BIG,LITTLE,LITTLE}。"
+[[hint]]
+text = "亲和 aff_ok(role,aff)：AFF_BIG 任务只能落 ROLE_BIG 核，AFF_LITTLE 只能落 ROLE_LITTLE 核。朴素分派把每个任务放进第一个满足亲和的核（亲和对但负载倾斜），再由 rebalance 在同角色核间迁移削峰。"
+[[hint]]
+text = "迁移=负载均衡：每轮挑本角色最忙核，找一个能让该对核峰值更低的任务迁到同角色较闲核，直到无法再降。迁移全程不破坏亲和、不丢任务（各类核负载总量守恒）。"
+[[hint]]
+text = "live 演示用 SBI HSM sbi_hart_start(EID 0x48534D,fid0,a0=hartid,a1=hart_entry,a2=0) 唤醒一颗从核当小核，结果经直接映射区（satp=0 恒等映射）共享变量 + __sync_synchronize() fence 回收——这是‘按角色分派任务’的真多核证据。"

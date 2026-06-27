@@ -206,6 +206,8 @@ fn run_qemu_virt(dir: &Path, timeout_s: u64) -> Result<RunOutput, String> {
     let args = [
         OsString::from("-machine"),
         OsString::from("virt"),
+        OsString::from("-smp"),
+        OsString::from("4"), // 多核/SMP 阶段用；单核阶段 OpenSBI 仅引导 hart0，其余 STOPPED
         OsString::from("-nographic"),
         OsString::from("-bios"),
         OsString::from("default"),

@@ -1,0 +1,34 @@
+id      = "S10-userland"
+title   = "正经·S10 · 用户程序：排序算法 + 模板引擎 + MD→ANSI TUI 组件"
+track   = "proper"
+require = 1
+env     = "qemu-virt"
+weight  = 1
+
+[[variant]]
+id    = "kernel-c"
+axis  = "software"
+lang  = "c"
+dir   = "kernel"
+build = "qemu-virt"
+
+[[variant]]
+id    = "essay"
+axis  = "essay"
+lang  = "text"
+dir   = "essay"
+build = "essay"
+
+[judge]
+expect    = ["SORT_PASS", "TMPL_PASS", "TUI_PASS", "ALL_PASS"]
+forbid    = ["FAIL", "panic", "UNEXPECTED"]
+timeout_s = 20
+
+[[hint]]
+text = "三个用户程序都跑在 U 态（沿用 S8 的 run_user/ecall），经 ulib 的 u_puts/u_write 走 SYS_WRITE 求服务、不直接碰内核控制台。你只需补 app_sort.c 的 partition() 与 app_template.c 的 render() 替换循环。"
+[[hint]]
+text = "快排 Lomuto 划分：pivot=a[hi]；i 从 lo 起；j 扫 lo..hi-1，遇 a[j]<pivot 就 swap(a[i],a[j]) 并 i++；最后 swap(a[i],a[hi]) 把枢轴归位，return i。占位 return hi 不划分 → 数组不会被排好 → 出不了 SORT_PASS。"
+[[hint]]
+text = "模板替换：扫 tmpl，遇 \"{{\" 进入占位符，读 key 直到 \"}}\"，在 env 表里按 key 长度+逐字符比对查 val 并拷进 out；其余字符原样拷贝。占位「原样照抄模板」会把字面量 {{name}} 留在输出里 → 与期望串不符 → 出不了 TMPL_PASS。"
+[[hint]]
+text = "TUI 组件已给：行首 \"# \" 渲成 ESC[1;4;36m...ESC[0m 标题、行内 **x** 渲成 ESC[1m...ESC[0m 粗体。三题全过后内核据 exit code==0 打印 ALL_PASS 并关机。"

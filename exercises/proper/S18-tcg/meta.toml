@@ -1,0 +1,34 @@
+id      = "S18-tcg"
+title   = "正经·S18 · mini-TCG：虚拟化形态辨析 + 动态二进制翻译"
+track   = "proper"
+require = 1
+env     = "qemu-virt"
+weight  = 1
+
+[[variant]]
+id    = "kernel-c"
+axis  = "software"
+lang  = "c"
+dir   = "kernel"
+build = "qemu-virt"
+
+[[variant]]
+id    = "essay"
+axis  = "essay"
+lang  = "text"
+dir   = "essay"
+build = "essay"
+
+[judge]
+expect    = ["DECODE_PASS", "EXEC_PASS", "ALL_PASS"]
+forbid    = ["FAIL", "panic", "UNEXPECTED"]
+timeout_s = 20
+
+[[hint]]
+text = "虚拟机(VM)= 同 ISA：guest 原生跑，只有特权操作 trap-and-emulate。type1 裸机 hypervisor、type2 宿主 OS 上的应用(VirtualBox，本质仍是虚拟机)、type1.5 宿主内核模块化(KVM)。模拟器/仿真器 = 异 ISA：每条 guest 指令都得翻译，跨架构 qemu(TCG) 就是模拟器，本实验是它的微缩版。"
+[[hint]]
+text = "解码 RV 字段：opcode=raw[6:0], rd=raw[11:7], funct3=raw[14:12], rs1=raw[19:15], rs2=raw[24:20], funct7=raw[31:25]。I 立即数 = 符号扩展 raw[31:20]，用 (int32_t)raw>>20 算术右移即得带符号值。"
+[[hint]]
+text = "指令区分：opcode=0x13 且 funct3=0 → addi(li 就是 addi rd,x0,imm)；opcode=0x33 且 funct3=0 时 funct7=0x00→add、0x20→sub；funct3=7→and、funct3=6→or。"
+[[hint]]
+text = "host 微操作就是「翻译后的 host 代码」：rd=0 时丢弃写(x0 恒为 0)。tcg_translate 按 op 选 host 函数指针(代码生成)，tcg_run 顺序执行翻译块。本实验生成的是 C 微操作而非真机器码，但 decode→IR→host code→run 的流水线与 qemu TCG 同构。"
