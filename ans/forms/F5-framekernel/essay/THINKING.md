@@ -1,7 +1,21 @@
 # F5 框内核(framekernel) 思考题参考答案（essay 变体）
 
-> 原型：Asterinas（蚂蚁集团 OS Lab，SOSP'25 Best Paper）。
+> 原型：Asterinas（蚂蚁集团 OS Lab；论文 arXiv:2506.03876，USENIX ATC'25）。
 > `ostd/` = OS Framework（允许 unsafe），`kernel/src/lib.rs:8` = `#![deny(unsafe_code)]`。
+
+## 0. 为什么叫「框」(frame) 内核？
+
+权威来源（Asterinas 论文 + 官方 book）给的命名是双关：
+
+1. **「框」= 中介边界（frame as boundary）**：可信基座 TCB 被画成一个**画框**——非可信代码
+   与**下方硬件**、**上方用户态**的一切底层交互，全部**经由这个 TCB「框」中介**。不可信代码被
+   「框」在中间，凡碰硬件/用户态都得穿过这层框；隔离的本质，就是「框」把守了所有出入口。
+2. **「框」= 框架（framework）**：这层最小 TCB 就是 **OS Framework**，实现叫 **OSTD**
+   （取意「OS 开发的 Rust 标准库」）——其余子系统都建在这个框架之上。
+
+所以 framekernel 不是单/微/外/库内核里的任何一种，而是一种**正交的新结构**：同地址空间
+（宏内核性能）+ 全 Rust + 一个最小可信「框」(OSTD) 把守 unsafe，其余 `forbid(unsafe_code)`。
+内存安全 TCB 仅约 14%，性能比肩 Linux、兼容 210+ Linux syscall。
 
 ## 1. framekernel 凭什么「既要又要」：单地址空间的宏内核性能 + 微内核式隔离？类型系统怎么替代 MMU？
 
