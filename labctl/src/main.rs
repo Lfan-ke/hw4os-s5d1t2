@@ -44,13 +44,13 @@ enum Cmd {
     Run {
         /// 实验相对路径，如 improper/01-hw-vlan（省略则跑第一个）
         id: Option<String>,
-        /// 用 solutions/ 参考解而非 exercises/
+        /// 用 ans/ 参考答案而非 exercises/
         #[arg(long)]
         solutions: bool,
     },
     /// 全量跑出记分板
     Verify {
-        /// 用 solutions/ 参考解自测（应全过）
+        /// 用 ans/ 参考答案自测（应全过）
         #[arg(long)]
         solutions: bool,
     },
@@ -93,7 +93,8 @@ fn find_root(explicit: Option<PathBuf>) -> Result<PathBuf> {
 }
 
 fn base_dir(root: &Path, solutions: bool) -> PathBuf {
-    root.join(if solutions { "solutions" } else { "exercises" })
+    // 参考答案统一放根目录 ans/；题面在 exercises/
+    root.join(if solutions { "ans" } else { "exercises" })
 }
 
 fn build_root(root: &Path) -> PathBuf {

@@ -1,0 +1,42 @@
+id      = "F3-exokernel"
+title   = "形态认知 · 外核（Exokernel）：内核只发资源句柄，抽象交给 libOS"
+track   = "forms"
+require = 1               # 任一变体过即完成；多过计辅助分
+env     = "host"          # 软件变体纯逻辑，host 直接跑
+weight  = 1
+
+# ── 软件双语言变体 + 思考题 ───────────────────────────────────────
+[[variant]]
+id    = "sw-rust"
+axis  = "software"
+lang  = "rust"
+dir   = "sw/rust"
+build = "cargo"
+
+[[variant]]
+id    = "sw-c"
+axis  = "software"
+lang  = "c"
+dir   = "sw/c"
+build = "gcc-host"
+
+[[variant]]
+id    = "essay"
+axis  = "essay"
+lang  = "md"
+dir   = "essay"
+build = "essay"
+
+# ── 统一判题口径（软件两变体对外行为一致）────────────────────────
+[judge]
+expect    = ["EXO_PASS", "LIBOS_PASS", "ALL_PASS"]
+forbid    = ["FAIL", "panic", "ERROR"]
+timeout_s = 30
+
+# ── 渐进提示 ──────────────────────────────────────────────────────
+[[hint]]
+text = "exo_alloc 只做两件事：越界校验(用 len > NBLK - start 比，别写 start+len 防溢出) + 重叠校验(区间内每块 owner 必须 FREE)。两关都过才标记归属返回 true，否则返回 false 且一个字节都不改。内核当裁判不当独裁者——它从不关心这些块被当成什么用。"
+[[hint]]
+text = "libB 的「分块布局」就是和 libA「顺序升序」对着来：从领地尾部 base+len-1 往前扫，挑到的空闲块标 used 并按采集顺序记进块表(于是高块号在前)。挑之前先数够不够 n 个，不够直接返回 None/0，免得挑一半留脏标记。"
+[[hint]]
+text = "两个 libOS 拿到的是 exo 发的不重叠块区间；它们对同一份数据给出不同物理布局([0,1] vs [11,10])却都能 round-trip——这正是「同样资源、不同抽象」。机制(发块)在内核，策略(布局)在 libOS。"

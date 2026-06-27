@@ -1,0 +1,44 @@
+id      = "forms/F4-unikernel"
+title   = "形态 F4 · 库OS / Unikernel：把 OS 编译进应用，同地址空间、无陷入、一镜像一应用"
+track   = "forms"
+require = 1               # 任一变体过即完成；多过计辅助分
+env     = "host"          # 形态认知 demo，host 软件直觉模型，直接跑
+weight  = 1
+
+# ── 实现路径：同一套「libOS 直接链接」模型的 rust / c 两种写法 + 思考题 ──
+[[variant]]
+id    = "sw-rust"
+axis  = "software"
+lang  = "rust"
+dir   = "sw/rust"
+build = "cargo"
+
+[[variant]]
+id    = "sw-c"
+axis  = "software"
+lang  = "c"
+dir   = "sw/c"
+build = "gcc-host"
+
+[[variant]]
+id    = "essay"
+axis  = "essay"
+lang  = "md"
+dir   = "essay"
+build = "essay"
+
+# ── 统一判题口径 ──────────────────────────────────────────────────
+[judge]
+expect    = ["UNI_PASS", "DIRECT_PASS", "SPECIALIZE_PASS", "IMAGE_PASS", "ALL_PASS"]
+forbid    = ["FAIL", "panic", "ERROR"]
+timeout_s = 30
+
+# ── 渐进提示 ──────────────────────────────────────────────────────
+[[hint]]
+text = "uni_write/uni_alloc/uni_clock 就是普通函数：写 = console_len += n 并返回 n；alloc = bump 指针(返回旧 top 再前移)；clock = 返回当前 tick 再自增。它们和 app 在同一地址空间，app 直接 call 即可。"
+[[hint]]
+text = "dispatch_direct 只是个 match/switch：按 svc 直接调对应的 uni_* 函数——不碰陷入计数器。传统模型 dispatch_trap(harness 给定)每次 *traps += 1，这就是 user→kernel 模式切换的开销；unikernel 的 traps 恒为 0。"
+[[hint]]
+text = "特化开关：is_linked(used, bit) = (used & bit) != 0——模块用到才链入。image_symbols 把链入模块的 size 累加。app 只用 console/alloc/clock，于是 net/blk/fs 被裁掉，特化符号数 30 < 全量 152，镜像就「变小」了。"
+[[hint]]
+text = "capstone：构造 APP_USES 特化镜像，app main 全程经 dispatch_direct 调 OS——banner 写 6 字节、两次 alloc 区间不重叠(0,32)、clock 单调、全程 0 陷入、且 net/blk/fs 不在镜像里。"

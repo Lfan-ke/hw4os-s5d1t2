@@ -1,0 +1,42 @@
+id      = "forms/F6-hybrid"
+title   = "形态 F6 · 混合内核：外表像微内核、内里像宏内核——直调与消息的折中路由"
+track   = "forms"
+require = 1               # 任一变体过即完成；多过计辅助分
+env     = "host"          # 纯逻辑 demo，host 直接跑
+weight  = 1
+
+# ── 双语言软件变体 + 思考题 ────────────────────────────────────────
+[[variant]]
+id    = "sw-rust"
+axis  = "software"
+lang  = "rust"
+dir   = "sw/rust"
+build = "cargo"
+
+[[variant]]
+id    = "sw-c"
+axis  = "software"
+lang  = "c"
+dir   = "sw/c"
+build = "gcc-host"
+
+[[variant]]
+id    = "essay"
+axis  = "essay"
+lang  = "md"
+dir   = "essay"
+build = "essay"
+
+# ── 判题口径（两类服务跑通 + 折中可量化）──────────────────────────
+[judge]
+expect    = ["HYBRID_PASS", "TRADEOFF_PASS", "ALL_PASS"]
+forbid    = ["FAIL", "panic", "ERROR"]
+timeout_s = 30
+
+# ── 渐进提示 ──────────────────────────────────────────────────────
+[[hint]]
+text = "route 是唯一要填的函数：按服务类型选放置策略。性能关键(Perf：sched/timer/mm)走内核态直调(快但不隔离)，需要隔离(Isolate：fs/net/driver/audio)走用户态消息(隔离但慢)。"
+[[hint]]
+text = "HYBRID 要求既有内核直调又有用户消息——全塞内核(退化纯宏)或全塞用户(退化纯微)都不算混合，会打印 HYBRID_MISS。"
+[[hint]]
+text = "TRADEOFF 三条：混合总开销严格落在 F1(全直调)与 F2(全消息)之间；隔离服务数严格介于 0 与 N 之间；用户消息计数 > 内核直调计数(IPC 隔离税可见)。三条全中才 TRADEOFF_PASS。"

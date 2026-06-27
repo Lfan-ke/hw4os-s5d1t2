@@ -1,0 +1,44 @@
+id      = "F2-microkernel"
+title   = "形态认知 · F2 微内核：内核只剩 IPC + 调度 + 能力，服务都在用户态"
+track   = "forms"
+require = 1               # 任一变体过即完成；多过计辅助分
+env     = "host"          # 科普 demo 纯逻辑，host 直接跑
+weight  = 1
+
+# ── 两条软件路径（同一套微内核模型的 Rust / C 写法）+ 思考题 ──────────
+[[variant]]
+id    = "sw-rust"
+axis  = "software"
+lang  = "rust"
+dir   = "sw/rust"
+build = "cargo"
+
+[[variant]]
+id    = "sw-c"
+axis  = "software"
+lang  = "c"
+dir   = "sw/c"
+build = "gcc-host"
+
+[[variant]]
+id    = "essay"
+axis  = "essay"
+lang  = "md"
+dir   = "essay"
+build = "essay"
+
+# ── 统一判题口径 ──────────────────────────────────────────────────
+[judge]
+expect    = ["MICRO_PASS", "CAP_PASS", "ISOLATE_PASS", "ALL_PASS"]
+forbid    = ["FAIL", "panic", "ERROR"]
+timeout_s = 30
+
+# ── 渐进提示 ──────────────────────────────────────────────────────
+[[hint]]
+text = "cap_check 三步走，顺序固定：先判 target==SVC_NONE → DenyNoCap；再判 rights 缺 RIGHT_SEND → DenyNoRight；最后判 !alive[target] → DenyOffline；都过才 Ok。占位若恒返回 Ok，CAP/ISOLATE 都过不了。"
+[[hint]]
+text = "dispatch 是一张路由表：target==SVC_ECHO 调 echo_service，==SVC_STORE 调 store_service。占位若恒返回 0，echo 往返就对不上 → MICRO 过不了。"
+[[hint]]
+text = "理解不变量：kernel_call 永远先 cap_check 再 dispatch。被拒绝时根本不进 dispatch，所以无能力的 PUT 不会改到 store——这就是 capability 「零副作用拒绝」的安全本质。"
+[[hint]]
+text = "ISOLATE：把 alive[SVC_ECHO]=false 模拟服务崩溃。内核不该自己崩，而是对 echo 返回 DenyOffline；同时 store 服务毫发无损照常往返。这就是用户态服务故障隔离。"

@@ -1,0 +1,44 @@
+id      = "F5-framekernel"
+title   = "形态认知 · F5 框内核(framekernel)：类型系统替代 MMU 的最小 TCB 隔离"
+track   = "forms"
+require = 1               # 任一变体过即完成；多过计辅助分
+env     = "host"          # 纯逻辑 demo，host 直接跑
+weight  = 1
+
+# ── 三条实现路径：rust 主 demo + c 近似 + essay 思考题 ─────────────
+[[variant]]
+id    = "sw-rust"
+axis  = "software"
+lang  = "rust"
+dir   = "sw/rust"
+build = "cargo"
+
+[[variant]]
+id    = "sw-c"
+axis  = "software"
+lang  = "c"
+dir   = "sw/c"
+build = "gcc-host"
+
+[[variant]]
+id    = "essay"
+axis  = "essay"
+lang  = "md"
+dir   = "essay"
+build = "essay"
+
+# ── 统一判题口径 ──────────────────────────────────────────────────
+[judge]
+expect    = ["FRAME_PASS", "TYPESAFE_PASS", "MINTCB_PASS", "ALL_PASS"]
+forbid    = ["FAIL", "panic", "ERROR"]
+timeout_s = 30
+
+# ── 渐进提示 ──────────────────────────────────────────────────────
+[[hint]]
+text = "FRAME：框架的 Frame::write/read 先做边界检查(i>=len 返回 Err)，再落到框架内部的裸指针读写。子系统只调安全 API、不写裸指针。"
+[[hint]]
+text = "TYPESAFE：两个相邻 Frame 共享同一物理池。A 越界写 far=64 物理上正是 B[0]——安全 API 必须返回 Err，B 的哨兵不被改坏。缺了边界检查，裸指针写就会越权改坏邻居。"
+[[hint]]
+text = "MINTCB：用 include_str! 读自己的源码，取 LABCTL-TCB-* 与 LABCTL-SUBSYS-* 两段，matches(\"unsafe\").count() 计数。框架段须 >0、子系统段须 ==0（子系统模块已 #![forbid(unsafe_code)] 编译期保证）。"
+[[hint]]
+text = "C 没有 borrow checker：只能 opaque handle + 受控访问函数做约定式封装，用运行时计数器(g_tcb_raw_ops/g_subsys_raw_ops)近似审计。essay 说明这只是约定、不是强制（类比 C 没有 async/await）。"

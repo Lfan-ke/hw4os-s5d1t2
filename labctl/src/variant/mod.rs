@@ -42,7 +42,7 @@ struct RunOutput {
     log: String,
 }
 
-/// 跑一个变体：base_dir 是 exercises/ 或 solutions/ 下的实验目录。
+/// 跑一个变体：base_dir 是 exercises/ 或 ans/ 下的实验目录。
 pub fn run_variant(ex: &Exercise, base_dir: &Path, v: &Variant, build_root: &Path) -> VariantResult {
     if !toolchain::build_available(&v.build) {
         return VariantResult {

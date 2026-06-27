@@ -1,0 +1,44 @@
+id      = "forms/F1-monolithic"
+title   = "形态 F1 · 宏内核 / 单内核：服务直调一块跑——快，但一处越界全崩"
+track   = "forms"
+require = 1               # 任一变体过即完成；多过计辅助分
+env     = "host"          # 纯逻辑 demo，host 直接跑
+weight  = 1
+
+# ── 双语言软件变体 + 思考题 ────────────────────────────────────────
+[[variant]]
+id    = "sw-rust"
+axis  = "software"
+lang  = "rust"
+dir   = "sw/rust"
+build = "cargo"
+
+[[variant]]
+id    = "sw-c"
+axis  = "software"
+lang  = "c"
+dir   = "sw/c"
+build = "gcc-host"
+
+[[variant]]
+id    = "essay"
+axis  = "essay"
+lang  = "md"
+dir   = "essay"
+build = "essay"
+
+# ── 判题口径（直调跑通 + 无隔离可观测）──────────────────────────────
+[judge]
+expect    = ["MONO_PASS", "FRAGILE_PASS", "ALL_PASS"]
+forbid    = ["FAIL", "panic", "ERROR"]
+timeout_s = 30
+
+# ── 渐进提示 ──────────────────────────────────────────────────────
+[[hint]]
+text = "syscall_dispatch 是「直接调用链」：在同一地址空间里，服务就是普通函数。依次调 fs_read → sched_pick → driver_io，把三者产物相加，hops 恒为 3（三次直调，无 IPC、无上下文切换）。"
+[[hint]]
+text = "driver_dma_write **不要**做边界检查：宏内核里驱动和内核共享地址空间，越界与否全靠调用方自律。直接 kmem[DRV_BASE+off]=val 即可。harness 用 off=5 越过 DRV_LEN=4，故意踩进调度器区。"
+[[hint]]
+text = "detect_corruption 把调度器区当前内容和「驱动跑之前」的基准快照逐字节比对，不同即返回 true。越界写后它必须报告 true（抓到跨子系统破坏），合法写后必须 false。"
+[[hint]]
+text = "FRAGILE_PASS 三件事都要成立：合法 DMA 不污染调度器、越界 DMA 污染被检出、且污染后调度决策真的变了(1→2)——这就是「无隔离边界」的可观测证据。"

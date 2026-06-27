@@ -41,4 +41,10 @@ order = [
   "proper/S17-virt",
   "proper/S18-tcg",
   "proper/S19-microkernel",
+  "forms/F1-monolithic",
+  "forms/F2-microkernel",
+  "forms/F3-exokernel",
+  "forms/F4-unikernel",
+  "forms/F5-framekernel",
+  "forms/F6-hybrid",
 ]
