@@ -1,0 +1,82 @@
+# 16c-clint 可视化声明 - labctl TUI 拓扑/数据流。
+# 主线：核内中断 CLINT - mtime 自走 → mtimecmp 比较器拉起 timer 中断；msip 写 1 拉起软件中断/IPI。
+
+[[node]]
+id = "mtime"
+label = "mtime 计数器（核内自走时钟）"
+[[node]]
+id = "mtimecmp"
+label = "mtimecmp per-hart 比较寄存器"
+[[node]]
+id = "cmp"
+label = "比较器 mtime>=mtimecmp → MTIP"
+[[node]]
+id = "msip"
+label = "msip 软件中断寄存器 → MSIP/IPI"
+[[node]]
+id = "mip"
+label = "mip CSR：MTIP[7] MSIP[3]（核内）"
+[[node]]
+id = "handler"
+label = "handler：计数 + 重装填 cmp / 清 msip"
+[[node]]
+id = "rtl"
+label = "hw CLINT RTL（比较器 + msip 寄存器）"
+
+[[edge]]
+from = "mtime"
+to   = "cmp"
+[[edge]]
+from = "mtimecmp"
+to   = "cmp"
+[[edge]]
+from = "cmp"
+to   = "mip"
+[[edge]]
+from = "msip"
+to   = "mip"
+[[edge]]
+from = "mip"
+to   = "handler"
+[[edge]]
+from = "handler"
+to   = "mtimecmp"
+[[edge]]
+from = "handler"
+to   = "msip"
+[[edge]]
+from = "rtl"
+to   = "cmp"
+
+[[flow]]
+name = "timer"
+path = ["mtime", "cmp", "mip", "handler", "mtimecmp"]
+note = "核内 timer：mtime 自走 → 比较器拉 MTIP → handler 计数并重装填 cmp（周期 timer）"
+[[flow]]
+name = "software-int"
+path = ["msip", "mip", "handler"]
+note = "软件中断/IPI：写 msip=1 拉 MSIP → handler 计数并写 msip=0 自清"
+[[flow]]
+name = "hw-source"
+path = ["rtl", "cmp", "mip"]
+note = "硬件侧：mtimecmp 比较器 + msip 寄存器就是软件 CLINT 模型对位的源头"
+
+[[iface]]
+name = "MSIP"
+bits = "[0]PEND"
+note = "0x00 RW；写 1 拉起软件中断（IPI 底座），写 0 自清"
+[[iface]]
+name = "MTIMECMP"
+bits = "[63:0]CMP"
+note = "0x08 RW；per-hart 比较值；mtime>=cmp 拉起 MTIP"
+[[iface]]
+name = "MTIME"
+bits = "[63:0]TIME"
+note = "0x10 RO；核内自走计数器（tick 推进）"
+[[iface]]
+name = "mip"
+bits = "[11]MEIP(核外) [7]MTIP(核内) [3]MSIP(核内)"
+note = "中断挂起 CSR：CLINT 占 MTIP/MSIP，PLIC 占 MEIP"
+
+[wave]
+signals = ["clk", "rst", "tick", "we", "waddr", "wdata", "mtime_o", "mtip", "msip"]

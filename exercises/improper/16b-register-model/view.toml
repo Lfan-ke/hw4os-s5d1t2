@@ -1,0 +1,79 @@
+# 16b-register-model 可视化声明 - labctl TUI 拓扑/数据流。
+# 主线：同一张 regdev 布局 → 四语逐位转写（C 自底向上 / Rust 类型化）→ raw↔struct 镜像。
+
+[[node]]
+id = "layout"
+label = "regdev 布局 (CTRL/STATUS/DATA/ID)"
+[[node]]
+id = "rv"
+label = "C① 裸 rv 汇编 lw/sw/fence"
+[[node]]
+id = "vol"
+label = "C② volatile / Rust① read_volatile"
+[[node]]
+id = "field"
+label = "C③ 位域+union / Rust③ tock-registers"
+[[node]]
+id = "flags"
+label = "Rust② bitflags 纯标志"
+[[node]]
+id = "mirror"
+label = "raw↔struct 逐位镜像 (union/bytemuck)"
+[[node]]
+id = "rtl"
+label = "hw regdev RTL (字段=wire/Bit 切片)"
+
+[[edge]]
+from = "layout"
+to   = "rv"
+[[edge]]
+from = "layout"
+to   = "rtl"
+[[edge]]
+from = "rv"
+to   = "vol"
+[[edge]]
+from = "vol"
+to   = "field"
+[[edge]]
+from = "vol"
+to   = "flags"
+[[edge]]
+from = "field"
+to   = "mirror"
+[[edge]]
+from = "rtl"
+to   = "mirror"
+
+[[flow]]
+name = "c-bottom-up"
+path = ["layout", "rv", "vol", "field", "mirror"]
+note = "C 自底向上：lw/sw → volatile → 位域+union → 镜像"
+[[flow]]
+name = "rust-typed"
+path = ["layout", "vol", "flags", "field", "mirror"]
+note = "Rust 花活：volatile → bitflags → tock-registers → bytemuck 镜像"
+[[flow]]
+name = "hw-source"
+path = ["layout", "rtl", "mirror"]
+note = "硬件侧：字段就是 wire/Bit 切片 - 软件库对位的源头"
+
+[[iface]]
+name = "CTRL"
+bits = "[8]RST [3:2]MODE [1]IE [0]EN"
+note = "0x00 RW；trace=0x0000000B"
+[[iface]]
+name = "STATUS"
+bits = "[2]IRQ [1]BUSY [0]READY"
+note = "0x04 RO；READY=EN，IRQ=EN&IE；trace=0x00000005"
+[[iface]]
+name = "DATA"
+bits = "[7:0]BYTE"
+note = "0x08 WO；trace=0xA5"
+[[iface]]
+name = "ID"
+bits = "[31:0]MAGIC"
+note = "0x0C RO；0x52454744 (\"REGD\")"
+
+[wave]
+signals = ["clk", "rst", "sel", "we", "addr", "wdata", "rdata"]

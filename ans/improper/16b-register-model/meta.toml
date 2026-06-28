@@ -1,0 +1,69 @@
+id      = "16b-register-model"
+title   = "寄存器模型 · 抄布局四语同构（C 自底向上四级 / Rust 类型化花活四级）"
+track   = "improper"
+require = 1               # 任一变体过即完成；多过计辅助分
+env     = "host"          # Rust/HW 在 host（cargo/iverilog/bsc）；C 走 riscv64 交叉 + qemu-user 真跑 lw/sw
+weight  = 1
+
+# ── C：规矩·自底向上四级（真 rv 汇编在最底层）────────────────────────
+# 整程序交叉编成 riscv64 静态 ELF 跑在 qemu-user，故 ① 裸汇编 ④ inline-asm 宏是真 lw/sw/fence。
+[[variant]]
+id    = "sw-c"
+axis  = "software"
+lang  = "c"
+dir   = "sw/c"
+build = "gcc-rv64"
+
+# ── Rust：花活四级（volatile → bitflags → tock-registers → bytemuck）──
+[[variant]]
+id    = "sw-rust"
+axis  = "software"
+lang  = "rust"
+dir   = "sw/rust"
+build = "cargo"
+
+# ── 硬件双实现：regdev 设备 RTL（字段即 wire/Bit 切片，软件库对位的源头）──
+[[variant]]
+id        = "hw-v"
+axis      = "hardware"
+lang      = "verilog"
+dir       = "hw/v"
+build     = "iverilog"
+warn_gate = true
+
+[[variant]]
+id        = "hw-bsv"
+axis      = "hardware"
+lang      = "bsv"
+dir       = "hw/bsv"
+build     = "bsc"
+warn_gate = true
+top       = "mkTbRegDev"
+entry     = "RegDev.bsv"
+
+# ── 思考题（Chisel regmap 抄成 register_structs!；关键字判，独立辅助账）──
+[[variant]]
+id    = "essay"
+axis  = "software"
+lang  = "essay"
+dir   = "essay"
+build = "essay"
+
+# ── 统一判题口径：四变体跑同一段 trace，逐位一致输出共同里程碑子串 ──────
+# 每语言另打印各级 Pass（C: RAW/VOL/STRUCT/MACRO；Rust: RAW/FLAGS/TOCK/MIRROR；HW: DEV）。
+# 共同里程碑 RAW_PASS（最底层读写）/ MIRROR_PASS（raw↔struct 逐位镜像）/ ALL_PASS 作统一 expect。
+[judge]
+expect    = ["RAW_PASS", "MIRROR_PASS", "ALL_PASS"]
+forbid    = ["FAIL", "panic", "ERROR"]
+timeout_s = 60
+
+[[hint]]
+text = "① 最底层：RISC-V 的 load/store 本相 = 算地址(base+off) + lw/sw，fence 管内存序。C 用内联汇编 `lw %0,0(%1)` / `sw %0,0(%1)` + `fence rw,rw`；Rust 用 read_volatile/write_volatile。读 ID(0x0C) 比对 magic 0x52454744(\"REGD\")。"
+[[hint]]
+text = "② 抄布局看 §2.1 这张表：CTRL(0x00,RW) EN[0] IE[1] MODE[3:2] RST[8]；STATUS(0x04,RO) READY[0] BUSY[1] IRQ[2]；DATA(0x08,WO) BYTE[7:0]；ID(0x0C,RO) magic。MODE 是 2 位多值字段（off/blink/solid/burst），别用 bitflags 表达；纯标志位（EN/IE、READY/BUSY/IRQ）才用 bitflags。"
+[[hint]]
+text = "③ Rust 类型化：register_bitfields! 写 OFFSET(n) NUMBITS(w)，逐字段对位 Verilog 的 `ctrl_r[3:2]`；register_structs! 按偏移摆 ReadWrite/ReadOnly/WriteOnly + 末尾 (0x10 => @END)。C 等价物 = struct 位域 + union{raw; fields}。"
+[[hint]]
+text = "④ 逐位镜像(MIRROR)是 capstone：把整字拆成字段再从字段重建整字，必须等于原始 raw - 证明“类型化模型 = 硬件布局的语法皮，逐位一致”。C 用 union、Rust 用 bytemuck::cast、HW 用字段抽头/切片重建。"
+[[hint]]
+text = "trace 取定值便于四语逐位对照：CTRL=0x0000000B(EN=1,IE=1,MODE=2/solid)、STATUS=0x00000005(READY=1,IRQ=1)、DATA.BYTE=0xA5。STATUS 由设备从 CTRL 推导：READY=EN，IRQ=EN&IE。"

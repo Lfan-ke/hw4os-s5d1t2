@@ -1,0 +1,80 @@
+# 16d-plic 可视化声明 - labctl TUI 拓扑/数据流。
+# 主线：多外设 IRQ → PLIC 路由器（priority/enable/threshold 过滤 + 优先级仲裁）→ claim/complete 握手 → hart。
+
+[[node]]
+id = "srcs"
+label = "外设源 1..4 (pending bitmap)"
+[[node]]
+id = "prio"
+label = "priority[源] (0=屏蔽)"
+[[node]]
+id = "enable"
+label = "enable[上下文][源]"
+[[node]]
+id = "thresh"
+label = "threshold[上下文] (prio>thr 才可见)"
+[[node]]
+id = "arb"
+label = "优先级仲裁 (最高 prio；同 prio 最小 id)"
+[[node]]
+id = "claim"
+label = "claim/complete 握手 (读=取顶源清 pending / 写=EOI)"
+[[node]]
+id = "hart"
+label = "hart context (取走 IRQ 处理)"
+
+[[edge]]
+from = "srcs"
+to   = "arb"
+[[edge]]
+from = "prio"
+to   = "arb"
+[[edge]]
+from = "enable"
+to   = "arb"
+[[edge]]
+from = "thresh"
+to   = "arb"
+[[edge]]
+from = "arb"
+to   = "claim"
+[[edge]]
+from = "claim"
+to   = "hart"
+
+[[flow]]
+name = "route"
+path = ["srcs", "arb", "claim", "hart"]
+note = "合格源 = pending & enable & (prio>thresh)；取最高 prio（同 prio 最小 id）"
+[[flow]]
+name = "filter"
+path = ["prio", "thresh", "arb"]
+note = "阈值挡掉 prio≤thr 的源（如源1 prio1）；enable 挡掉未使能源（如源4）"
+[[flow]]
+name = "handshake"
+path = ["arb", "claim", "hart"]
+note = "claim 取顶源并清 pending；hart 处理完 complete(EOI)；抽干序列 3,2,0"
+
+[[iface]]
+name = "PRIO[i]"
+bits = "[1:0] 优先级 (0=屏蔽)"
+note = "0x00..0x0C RW；本课 prio 1/2/3/3"
+[[iface]]
+name = "PENDING"
+bits = "[4:1] 源挂起 bitmap"
+note = "0x10 RO；raise 后 = 0x1E"
+[[iface]]
+name = "ENABLE"
+bits = "[4:1] 上下文使能 bitmap"
+note = "0x14 RW；使能 {1,2,3} = 0x0E"
+[[iface]]
+name = "THRESHOLD"
+bits = "[1:0] 阈值"
+note = "0x18 RW；本课 = 1"
+[[iface]]
+name = "CLAIM"
+bits = "R=顶源 id / W=complete"
+note = "0x1C；读副作用清 pending，写为 EOI"
+
+[wave]
+signals = ["clk", "rst", "sel", "we", "addr", "wdata", "rdata", "best_id", "best_prio"]

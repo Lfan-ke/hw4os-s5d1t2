@@ -1,0 +1,69 @@
+id      = "16c-clint"
+title   = "核内中断 · CLINT（per-hart timer mtime/mtimecmp + 软件中断 MSIP/IPI）心智模型"
+track   = "improper"
+require = 1               # 任一变体过即完成；多过计辅助分
+env     = "host"          # Rust/HW 在 host（cargo/iverilog/bsc）；C 走 riscv64 交叉 + qemu-user 真跑 volatile/fence
+weight  = 1
+
+# ── C：规矩 - MSIP/mtimecmp 全用 volatile 写 + fence 保可见性（呼应 16a/16b）──
+# 整程序交叉编成 riscv64 静态 ELF 跑在 qemu-user，故 volatile 读写 = 真 lw/sw、fence = 真内存屏障。
+[[variant]]
+id    = "sw-c"
+axis  = "software"
+lang  = "c"
+dir   = "sw/c"
+build = "gcc-rv64"
+
+# ── Rust：花活 - volatile → bitflags(mip 的 MTIP/MSIP 标志) → tock-registers(CLINT 寄存器图)──
+[[variant]]
+id    = "sw-rust"
+axis  = "software"
+lang  = "rust"
+dir   = "sw/rust"
+build = "cargo"
+
+# ── 硬件双实现：mtimecmp 比较器 + msip 寄存器 RTL（软件 CLINT 模型对位的源头）──
+[[variant]]
+id        = "hw-v"
+axis      = "hardware"
+lang      = "verilog"
+dir       = "hw/v"
+build     = "iverilog"
+warn_gate = true
+
+[[variant]]
+id        = "hw-bsv"
+axis      = "hardware"
+lang      = "bsv"
+dir       = "hw/bsv"
+build     = "bsc"
+warn_gate = true
+top       = "mkTbClint"
+entry     = "Clint.bsv"
+
+# ── 思考题（核内 vs 核外、为何 timer 属核内；关键字判，独立辅助账）──
+[[variant]]
+id    = "essay"
+axis  = "software"
+lang  = "essay"
+dir   = "essay"
+build = "essay"
+
+# ── 统一判题口径：四变体跑同一场景，逐位一致（timer 触发 3 次、软件中断 2 次）──
+# 每变体都打印共同里程碑 TIMER_PASS / SOFT_PASS / ALL_PASS（硬件另打印 DEV_PASS 作 bonus）。
+# 统一 expect 取 TIMER_PASS（核内 timer）与 ALL_PASS（全程一致）；SOFT_PASS 为各变体附加里程碑。
+[judge]
+expect    = ["TIMER_PASS", "ALL_PASS"]
+forbid    = ["FAIL", "panic", "ERROR"]
+timeout_s = 60
+
+[[hint]]
+text = "CLINT(Core-Local Interruptor)=每 hart 私有的中断源：① timer - 一个自走的 mtime 计数器 + per-hart 的 mtimecmp 比较寄存器，当 mtime>=mtimecmp 即拉起 MTIP（机器态 timer 中断）；② 软件中断 - per-hart 的 msip 寄存器，写 1 拉起 MSIP（核间中断 IPI 的底座）。本课固定场景：PERIOD=5、跑 NTICK=16 个 tick → timer 恰触发 3 次（mtime=5/10/15）；软件中断手动拉起 2 次。"
+[[hint]]
+text = "比较器是 timer 的心脏：`pending_mtip = (mtime >= mtimecmp)`。handler 收到后要『重新装填』 - 把 mtimecmp 往后挪一个 PERIOD（mtimecmp += PERIOD），这一步同时清掉本次 MTIP（mtime 一时追不上新的 cmp），构成周期 timer。漏了重装填 → mtime 永远 >= 旧 cmp → 中断风暴。"
+[[hint]]
+text = "软件中断/IPI：写 msip=1 拉起 MSIP；handler 处理后写 msip=0 自清。C 规矩 - msip/mtimecmp 都用 volatile 写 + `fence rw,rw`：寄存器不是普通内存，编译器不能缓存、不能重排，fence 保证『写 cmp』对硬件比较器可见（与 16a 可缓存性反例、16b 的 volatile 同根）。"
+[[hint]]
+text = "四语对位：Verilog `assign mtip=(mtime_r>=mtimecmp_r)` / BSV `method Bool mtip=(mtimeR>=mtimecmpR)` 就是 C 的比较表达式、Rust `clint.mtime.get()>=clint.mtimecmp.get()` 的源头。Rust 花活：用 bitflags 给 mip 的 MTIP(bit7)/MSIP(bit3) 起名、用 tock-registers register_structs! 摆出 CLINT 寄存器图（msip@0x0 / mtimecmp@0x8 / mtime@0x10）。"
+[[hint]]
+text = "核内 vs 核外（essay 主题）：CLINT 是 core-local - 每 hart 一套 mtimecmp/msip，中断只送本 hart，无需仲裁、无需 claim/complete；timer 与本 hart 的调度时钟强绑定，天然属核内。外设 IRQ（键盘/网卡）是平台共享、要路由到某个 hart，那是核外的 PLIC（下一课 16d）。"

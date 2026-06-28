@@ -1,0 +1,12 @@
+[package]
+name = "clint-sw-rust"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "clint"
+path = "src/main.rs"
+
+[dependencies]
+bitflags = "2"
+tock-registers = "0.9"

@@ -231,3 +231,8 @@ __marimo__/
 # ── 统一忽略点开头文件/目录，但保留 git 相关（.gitignore/.gitmodules/.github/.gitattributes）──
 .*
 !.git*
+
+# 设计文档不入库（本地保留）
+DESIGN*.md
+docs/*
+!docs/tutorial.md

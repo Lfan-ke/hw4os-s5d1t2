@@ -1,0 +1,82 @@
+# 16a-bus-cache 可视化声明 - labctl TUI 拓扑/数据流。
+# 主线：addr → 仲裁器（区间译码）→ 设备 handler；可缓存区走 cache，MMIO 直通；突发摊薄握手。
+
+[[node]]
+id = "addr"
+label = "addr（32 位物理地址）"
+[[node]]
+id = "arb"
+label = "仲裁器 = 地址区间译码（sel/Dev）"
+[[node]]
+id = "regdev"
+label = "regdev 0x4000_0000（可缓存 + 突发）"
+[[node]]
+id = "sensor"
+label = "sensor 0x4001_0000（直通 / TEMP 每 tick 变）"
+[[node]]
+id = "switchdev"
+label = "switchdev 0x4002_0000（直通 / 写=副作用）"
+[[node]]
+id = "buserr"
+label = "else → BUS_ERR"
+[[node]]
+id = "cache"
+label = "cache 层（miss→hit；MMIO 必 UNCACHED）"
+[[node]]
+id = "burst"
+label = "突发摊薄握手（24×0.2=4.8 vs 0.2，SPEEDUP=24）"
+
+[[edge]]
+from = "addr"
+to   = "arb"
+[[edge]]
+from = "arb"
+to   = "regdev"
+[[edge]]
+from = "arb"
+to   = "sensor"
+[[edge]]
+from = "arb"
+to   = "switchdev"
+[[edge]]
+from = "arb"
+to   = "buserr"
+[[edge]]
+from = "regdev"
+to   = "cache"
+[[edge]]
+from = "cache"
+to   = "burst"
+
+[[flow]]
+name = "arbitration"
+path = ["addr", "arb", "regdev", "sensor", "switchdev", "buserr"]
+note = "仲裁=地址区间译码：addr 落区间 → 选设备 handler，全落空 = 总线错误"
+[[flow]]
+name = "cacheable"
+path = ["arb", "regdev", "cache", "burst"]
+note = "regdev 类内存：cache 暂存（miss→hit）+ 突发摊薄握手（提速 24×）"
+[[flow]]
+name = "uncached"
+path = ["arb", "sensor", "switchdev"]
+note = "sensor/switchdev 直通：缓存会 STALE / MISSED_SIDEEFFECT - MMIO 必 UNCACHED"
+
+[[iface]]
+name = "regdev"
+bits = "0x4000_0000..0x4000_1000"
+note = "类内存/可缓存：cache + 突发"
+[[iface]]
+name = "sensor"
+bits = "0x4001_0000..0x4001_0010"
+note = "直通：TEMP 每 tick 变（缓存=STALE）"
+[[iface]]
+name = "switchdev"
+bits = "0x4002_0000..0x4002_0010"
+note = "直通：写=翻转副作用（缓存=MISSED_SIDEEFFECT）"
+[[iface]]
+name = "BUS_ERR"
+bits = "else"
+note = "区间全落空 = 总线错误"
+
+[wave]
+signals = ["addr", "sel_reg", "sel_sen", "sel_sw", "bus_err", "dev"]

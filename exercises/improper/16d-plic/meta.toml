@@ -1,0 +1,67 @@
+id      = "16d-plic"
+title   = "核外中断 PLIC · 共享外设 IRQ 路由器（priority/enable/threshold → claim/complete）"
+track   = "improper"
+require = 1               # 任一变体过即完成；多过计辅助分
+env     = "host"          # Rust/HW 在 host（cargo/iverilog/bsc）；C 走 riscv64 交叉 + qemu-user
+
+weight  = 1
+
+# ── C：规矩·volatile + fence 的软件 PLIC 模型（claim 读 / complete 写需定序）────
+[[variant]]
+id    = "sw-c"
+axis  = "software"
+lang  = "c"
+dir   = "sw/c"
+build = "gcc-rv64"
+
+# ── Rust：花活·bitflags 类型化源掩码的软件 PLIC 模型 ──────────────────────
+[[variant]]
+id    = "sw-rust"
+axis  = "software"
+lang  = "rust"
+dir   = "sw/rust"
+build = "cargo"
+
+# ── 硬件双实现：优先级仲裁 RTL（eligibility + max-priority + claim 清 pending）──
+[[variant]]
+id        = "hw-v"
+axis      = "hardware"
+lang      = "verilog"
+dir       = "hw/v"
+build     = "iverilog"
+warn_gate = true
+
+[[variant]]
+id        = "hw-bsv"
+axis      = "hardware"
+lang      = "bsv"
+dir       = "hw/bsv"
+build     = "bsc"
+warn_gate = true
+top       = "mkTbPlic"
+entry     = "Plic.bsv"
+
+# ── 思考题（中断=一种总线绑定：与 16-driver 设备树 interrupts 属性对位）────────
+[[variant]]
+id    = "essay"
+axis  = "software"
+lang  = "essay"
+dir   = "essay"
+build = "essay"
+
+# ── 统一判题口径：四变体跑同一场景，逐位一致输出共同里程碑子串 ──────────────
+# 软/硬变体都打印 ROUTE_PASS（仲裁）/ CLAIM_PASS（claim/complete 握手）/ ALL_PASS；
+# 软件另打印 THRESH_PASS（阈值/使能过滤），硬件另打印 DEV_PASS（寄存器字段响应）。
+[judge]
+expect    = ["ROUTE_PASS", "ALL_PASS"]
+forbid    = ["FAIL", "panic", "ERROR"]
+timeout_s = 60
+
+[[hint]]
+text = "PLIC 三件套：priority[源]（0=屏蔽）、enable[上下文][源]、threshold[上下文]。一个源对某上下文“可见” ⟺ pending & enable & (priority > threshold)。本课场景：源 1..4 优先级 1/2/3/3、使能 {1,2,3}、阈值 1。"
+[[hint]]
+text = "仲裁：在所有可见源里取 priority 最高者；priority 相同则取最小源 id（PLIC 规定）。实现技巧：自高 id 向低用 `>=` 让低 id 覆盖胜出，或自低 id 向高用 strict `>`。满 pending {1,2,3,4} 下顶源 = 3（prio 3；源4 prio 也 3 但未使能、源1 prio1 被阈值挡）。"
+[[hint]]
+text = "claim/complete 握手：读 CLAIM 寄存器 = 返回顶源 id 并清掉它的 pending（进入 in-service）；handler 处理完写 CLAIM = complete(EOI)。满 pending 抽干序列 = 3,2,0（余 {1,4} 被阈值/使能挡住）；complete 后重新 raise 源3 可再 claim 到 3。"
+[[hint]]
+text = "软件 claim 读 / complete 写用 volatile + `fence rw,rw` 定内存序（真 PLIC 驱动同此，呼应 16b/16c）；硬件 claim 读寄存器的“副作用”= 时钟沿上把 best_id 对应的 pending 位清掉（pending &= ~(1<<best_id)）。"

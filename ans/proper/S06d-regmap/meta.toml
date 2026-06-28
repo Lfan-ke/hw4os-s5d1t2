@@ -1,0 +1,32 @@
+id      = "S06d-regmap"
+title   = "正经·S06d · 类型化寄存器图 + 平台总线生命周期：从裸指针到 register map"
+track   = "proper"
+require = 1
+env     = "qemu-virt"
+weight  = 1
+
+[[variant]]
+id    = "kernel-c"
+axis  = "software"
+lang  = "c"
+dir   = "kernel"
+build = "qemu-virt"
+
+[[variant]]
+id    = "essay"
+axis  = "writing"
+lang  = "text"
+dir   = "essay"
+build = "essay"
+
+[judge]
+expect    = ["REGMAP_PASS", "DEV_PASS"]
+forbid    = ["FAIL", "panic", "UNEXPECTED"]
+timeout_s = 20
+
+[[hint]]
+text = "把 S06/S06c 的 #define+裸指针升级为类型化寄存器图：NS16550 用 struct{ volatile uint8_t thr_rbr,ier,iir_fcr,lcr,mcr,lsr,msr,scr; } 直接盖在 base=0x10000000 上（reg-shift=0，字节对齐，struct 成员偏移即寄存器偏移）；位段用 union{u8 raw; struct{...:1}b;} 解码（呼应 16b 的 C 第③级 位域+union）。"
+[[hint]]
+text = "PLIC@0x0c000000 太大不写成一个大 struct，而是按区间拆成 typed 子结构：priority{u32 prio[1024]}@+0x0、enable{u32 word[32]}@+0x2000+ctx*0x80、context{u32 threshold,claim}@+0x200000+ctx*0x1000；用 plic_prio()->prio[irq]=1 / plic_enable(ctx)->word[irq/32]|=1<<(irq%32) / plic_context(ctx)->threshold=0 配置后回读校验。hartN 的 S-context=2N+1，hartid 由 SBI 经 a0 传入。"
+[[hint]]
+text = "平台总线生命周期：fdt_scan 得到 (name,compatible,reg) → driver_match 按 compatible 在驱动表里选驱动 → drv->probe(dev) 用类型化 regmap 自测设备真在那 → driver_bind 把 driver 绑到 device 并 dev_register 注册一个 /dev 节点（如 /dev/ttyS0）→ dev_lookup 拿回设备、经其 regmap 做真实 I/O。三里程碑：REGMAP_PASS / BIND_PASS / DEV_PASS。"

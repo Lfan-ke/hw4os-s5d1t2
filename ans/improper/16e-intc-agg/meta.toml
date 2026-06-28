@@ -1,0 +1,69 @@
+id      = "16e-intc-agg"
+title   = "中断聚合 · 多核仲裁（CLINT IPI + PLIC 多核 claim 竞争 + 缩减真源码思考题）"
+track   = "improper"
+require = 1               # 任一变体过即完成；多过计辅助分（按轴）
+env     = "host"          # Rust/HW 在 host（cargo/iverilog/bsc）；C 走 riscv64 交叉 + qemu-user 真跑 amoswap/fence
+weight  = 1
+
+# ── C：规矩·自底向上 - claim 用真 amoswap.w，MSIP/payload 用真 lw/sw，跨核可见性用真 fence ──
+# 整程序交叉编成 riscv64 静态 ELF 跑在 qemu-user，故仲裁的原子与内存序是“真硬件本相”。
+[[variant]]
+id    = "sw-c"
+axis  = "software"
+lang  = "c"
+dir   = "sw/c"
+build = "gcc-rv64"
+
+# ── Rust：类型化花活 - AtomicU32::swap(Ordering) 抢 gateway、fence(Release/Acquire) 管 IPI 内存序 ──
+[[variant]]
+id    = "sw-rust"
+axis  = "software"
+lang  = "rust"
+dir   = "sw/rust"
+build = "cargo"
+
+# ── 硬件双实现：多 context PLIC 聚合器 RTL（claim 仲裁 + gateway + MSIP），tb 当参考驱动 ──
+[[variant]]
+id        = "hw-v"
+axis      = "hardware"
+lang      = "verilog"
+dir       = "hw/v"
+build     = "iverilog"
+warn_gate = true
+
+[[variant]]
+id        = "hw-bsv"
+axis      = "hardware"
+lang      = "bsv"
+dir       = "hw/bsv"
+build     = "bsc"
+warn_gate = true
+top       = "mkTbIntcAgg"
+entry     = "IntcAgg.bsv"
+
+# ── 思考题（缩减版真内核 PLIC claim/IPI 源码；关键字判，独立辅助账）──
+[[variant]]
+id    = "essay"
+axis  = "software"
+lang  = "essay"
+dir   = "essay"
+build = "essay"
+
+# ── 统一判题口径：四变体跑同一聚合场景，逐位一致输出共同里程碑子串 ──────
+# 共同里程碑：ARBITER_PASS（同一 IRQ 仅一个 hart 处理）/ IPI_PASS（跨核 MSIP + 内存序）/ ALL_PASS。
+# 各语言另打印：C/Rust 的 CLAIM_PASS、COMPLETE_PASS；HW 的 DEV_PASS（gateway 重新武装） - 算 bonus、不进 expect。
+[judge]
+expect    = ["ARBITER_PASS", "ALL_PASS"]
+forbid    = ["FAIL", "panic", "ERROR"]
+timeout_s = 60
+
+[[hint]]
+text = "聚合三件事合流：① CLINT 的 IPI（写目标 hart 的 MSIP=敲软件中断）；② PLIC 的外设 IRQ 路由；③ 多核仲裁 - 同一 IRQ 源对 N 个 hart-context，靠 claim/complete 的 gateway 保证“只一个 hart 处理”。固定剧本：N=4、IRQ=7、winner=hart0、IPI 目标=hart{1,2,3}、payload=0xABCD。"
+[[hint]]
+text = "claim = 原子拿 gateway：把 source 的 in-flight 标志从 0 翻到 1 的那个 hart 拿到 IRQ_ID，其余 claim 读 0。C 用真 `amoswap.w`（“多核只一个赢”的硬件本相），Rust 用 `AtomicU32::swap(Ordering::AcqRel)`，Verilog/BSV 用 gateway 寄存器 + 授予条件 `pending & ~inflight`。这就是“仲裁”的全部秘密 - 谁先翻标志谁处理。"
+[[hint]]
+text = "complete = 还 gateway：写回 IRQ_ID 让 in-flight 归 0，源才能再次投递。漏 complete → gateway 永久 in-flight → 该 IRQ 此后再不转发给任何 hart（中断永久丢失 / 设备卡住）。剧本里特意先演“未 complete 再 claim 读 0（卡住）”，再 complete 后“claim 又拿到 IRQ_ID（重新武装）”。"
+[[hint]]
+text = "IPI 内存序：生产者 hart 先写共享 payload，再 barrier，最后敲 IPI（写 MSIP）；消费者 hart 见 MSIP→barrier→读 payload。barrier（C: `fence rw,rw`；Rust: `fence(Release)`/`fence(Acquire)`）保证“数据先于 IPI 可见、IPI 先于读数据” - 少了它，从核可能见到 IPI 却读到旧 payload。这正是 release/acquire 配对。"
+[[hint]]
+text = "四变体逐位一致：ARBITER_PASS=winner 唯一且为 hart0、3 个竞争者 claim 到 0；IPI_PASS=hart{1,2,3} 收到 MSIP 并确认清位（软件侧另校验读到 payload=0xABCD）；ALL_PASS=全过。硬件 tb 另打印 DEV_PASS（complete 后重新武装）。essay 关键字：claim / complete / hart / barrier。"

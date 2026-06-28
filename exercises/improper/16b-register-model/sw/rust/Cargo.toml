@@ -1,0 +1,13 @@
+[package]
+name = "regmodel-sw-rust"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "regmodel"
+path = "src/main.rs"
+
+[dependencies]
+bitflags = "2"
+tock-registers = "0.9"
+bytemuck = { version = "1", features = ["derive"] }

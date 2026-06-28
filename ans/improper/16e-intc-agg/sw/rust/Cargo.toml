@@ -1,0 +1,8 @@
+[package]
+name = "intc-sw-rust"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "intc"
+path = "src/main.rs"

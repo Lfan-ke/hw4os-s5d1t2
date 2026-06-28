@@ -1,0 +1,69 @@
+id      = "16a-bus-cache"
+title   = "总线与缓存 · 仲裁=地址译码 / cache 暂存 / 突发摊薄握手 / MMIO 直通"
+track   = "improper"
+require = 1               # 任一变体过即完成；多过计辅助分
+env     = "host"          # Rust/HW 在 host（cargo/iverilog/bsc）；C 走 riscv64 交叉 + qemu-user（真 fence）
+weight  = 1
+
+# ── C：软件总线模型（区间译码分发 + cache 层 + 真实 nanosleep 突发计时；MMIO 直通用 fence）──
+# 整程序交叉编成 riscv64 静态 ELF 跑在 qemu-user，直通访问用 `fence rw,rw`（呼应 16b“寄存器为何要 volatile”）。
+[[variant]]
+id    = "sw-c"
+axis  = "software"
+lang  = "c"
+dir   = "sw/c"
+build = "gcc-rv64"
+
+# ── Rust：软件总线模型（区间译码分发 + cache 层 + std::thread::sleep 突发计时）──
+[[variant]]
+id    = "sw-rust"
+axis  = "software"
+lang  = "rust"
+dir   = "sw/rust"
+build = "cargo"
+
+# ── 硬件双实现：总线仲裁器 RTL（addr 落区间 → sel/Dev；tb 当参考驱动对照期望路由）──
+[[variant]]
+id        = "hw-v"
+axis      = "hardware"
+lang      = "verilog"
+dir       = "hw/v"
+build     = "iverilog"
+warn_gate = true
+
+[[variant]]
+id        = "hw-bsv"
+axis      = "hardware"
+lang      = "bsv"
+dir       = "hw/bsv"
+build     = "bsc"
+warn_gate = true
+top       = "mkTbBusArb"
+entry     = "BusArb.bsv"
+
+# ── 思考题（cache 仲裁 / 突发账 4.8 vs 0.2 / sensor·switchdev 直通反例；关键字判，独立辅助账）──
+[[variant]]
+id    = "essay"
+axis  = "software"
+lang  = "essay"
+dir   = "essay"
+build = "essay"
+
+# ── 统一判题口径：四变体跑同一段仲裁场景，逐位一致打印共同里程碑子串 ──────
+# 共同里程碑：ARB_PASS（总线仲裁=地址区间译码，8/8 路由一致）/ ALL_PASS。
+# 软件另打印 CACHE_PASS / BURST_PASS（cache 一致性 + 突发摊薄握手）；硬件另打印 DEV_PASS（单热/总线错误）。均算 bonus。
+[judge]
+expect    = ["ARB_PASS", "ALL_PASS"]
+forbid    = ["FAIL", "panic", "ERROR"]
+timeout_s = 30
+
+[[hint]]
+text = "① 仲裁器祛魅 = 地址区间译码：把 addr 和 §2.2 三段区间比对（`>=base && <end`），命中即选该设备，全落空 = 总线错误（BUS_ERR）。硬件是 `assign sel_x = (addr>=BASE)&&(addr<END)` 的纯组合；软件是 if/else if 链。四变体跑同一组 8 个地址、对照同一张期望路由表 → ARB_PASS。"
+[[hint]]
+text = "② cache 暂存：可缓存区（regdev，类内存）首读 miss 取设备、再读 hit 命中缓存，省一次设备访问且逐次一致。判 miss/hit 看“缓存是否有效”。"
+[[hint]]
+text = "③ 直通/uncached（§2.3 反例）：sensor 的 TEMP 每 tick 变 - 若缓存 → 读到过时值 STALE；直通才 FRESH。switchdev 写=翻转副作用 - 若缓存吞写 → MISSED_SIDEEFFECT；直通才 SWITCHED。⟹ 非存储语义的 MMIO 必须 UNCACHED（这正是 16b/C 里 volatile+fence 的根因）。"
+[[hint]]
+text = "④ 突发摊薄握手（§2.3 时间模型）：单次总线握手 = sleep(0.2s)。逐字节传 24B = 每字节一次握手 = 24×0.2 = 4.8s；突发（MODE=burst 且 ≥3 单位）整块只 1 次握手 = 0.2s，提速 24×。C 用 nanosleep、Rust 用 thread::sleep 真睡，clock 计时兜底；打印 BYTE_T=4.8 BURST_T=0.2 SPEEDUP=24。"
+[[hint]]
+text = "对标 proper：improper 这里的“总线/区间”是 toy；proper 侧“真总线”就是 qemu-virt 的物理地址图（S06/S06c 里 NS16550/PLIC 的 base 常量就是这张 §2.2 表的真身）。"

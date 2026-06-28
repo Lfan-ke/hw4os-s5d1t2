@@ -1,0 +1,34 @@
+id      = "S06e-ipi"
+title   = "正经·S06e · 真实 IPI（CLINT MSIP/SBI）+ 多核 PLIC claim 仲裁"
+track   = "proper"
+require = 1
+env     = "qemu-virt"
+weight  = 1
+
+[[variant]]
+id    = "kernel-c"
+axis  = "software"
+lang  = "c"
+dir   = "kernel"
+build = "qemu-virt"
+
+[[variant]]
+id    = "essay"
+axis  = "essay"
+lang  = "text"
+dir   = "essay"
+build = "essay"
+
+[judge]
+expect    = ["IPI_PASS", "SMP_PASS"]
+forbid    = ["FAIL", "panic", "UNEXPECTED"]
+timeout_s = 20
+
+[[hint]]
+text = "S 态发不了 CLINT MSIP（那是 M 态、OpenSBI 占着）。S 态做 IPI 走 SBI 的 IPI 扩展：EID=0x735049(\"sPI\") fid=0 sbi_send_ipi(hart_mask, hart_mask_base)。OpenSBI 收到后正是去写目标 hart 的 CLINT MSIP(0x02000000+4*hart)、把 mip.SSIP 反射给 S 态 - 目标 hart 于是取到 scause=1（S 态软件中断）。处理只一件事：清 sip.SSIP（csrc sip, 1<<1）并计数，不清会反复重入。"
+[[hint]]
+text = "多核 claim 仲裁：把同一外设源（UART src=10）同时使能到两个 hart 的 S-context（priority=1、各自 enable、threshold=0）。回环自激置 src10 pending 后，两核在一个 barrier 处同时读各自 PLIC_CLAIM(ctx)。claim 是原子领取：谁先读谁拿到非零 irq 并把该源移出 pending，另一个核读到 0。于是恰一个 hart 处理该中断（claim_nonzero==1、claim_zero==1）。hartN 的 S-context = 2N+1。"
+[[hint]]
+text = "-smp 4 下 OpenSBI 引导核不确定（可能是 hart 1/2/3）；别写死 hart0。用 a0 拿到引导 hartid，唤醒一个确定不同的 target（HSM hart_start，同 S13/S15）。打印只由引导核做（两核 console 交错会毁掉 Pass 子串）；CLAIM 段开了 UART 回环、控制台静默，先记录、关回环恢复控制台后再统一打印（同 S06c）。"
+[[hint]]
+text = "全程有界自旋（非 wfi 死等）：等 IPI/等 claim 仲裁/等 target 收尾都用计数自旋，超时即判 *_MISS 而非卡死。trap.c 对软件中断有计数守卫，疑似风暴时屏蔽 sie.SSIE 兜底。"

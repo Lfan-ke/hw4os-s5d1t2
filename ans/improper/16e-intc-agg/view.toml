@@ -1,0 +1,69 @@
+# 16e-intc-agg 可视化声明 - labctl TUI 拓扑/数据流。
+# 主线：一个共享 IRQ 源 → N 个 hart-context claim 竞争 → gateway 仲裁出唯一处理者
+#       → complete 重新武装 → 处理者敲 IPI 跨核协调（barrier 管内存序）。
+
+[[node]]
+id = "src"
+label = "外设 IRQ 源 (IRQ7, pending)"
+[[node]]
+id = "gw"
+label = "PLIC gateway (in-flight 标志)"
+[[node]]
+id = "ctx"
+label = "N=4 hart-context claim 竞争"
+[[node]]
+id = "winner"
+label = "唯一处理者 hart0 (claim=IRQ7)"
+[[node]]
+id = "complete"
+label = "complete → gateway 重新武装"
+[[node]]
+id = "ipi"
+label = "CLINT IPI (写 hart{1,2,3} MSIP)"
+[[node]]
+id = "barrier"
+label = "barrier (payload 先于 IPI 可见)"
+
+[[edge]]
+from = "src"
+to   = "gw"
+[[edge]]
+from = "gw"
+to   = "ctx"
+[[edge]]
+from = "ctx"
+to   = "winner"
+[[edge]]
+from = "winner"
+to   = "complete"
+[[edge]]
+from = "winner"
+to   = "barrier"
+[[edge]]
+from = "barrier"
+to   = "ipi"
+
+[[flow]]
+name = "arbitration"
+path = ["src", "gw", "ctx", "winner", "complete"]
+note = "多核仲裁：claim 把 gateway 0→1 的 hart 拿到 IRQ，其余读 0；complete 还 gateway"
+[[flow]]
+name = "ipi-coord"
+path = ["winner", "barrier", "ipi"]
+note = "跨核协调：处理者先写 payload→barrier→敲 IPI；从核见 MSIP→barrier→读 payload"
+
+[[iface]]
+name = "claim"
+bits = "[31:0] hwirq"
+note = "读：赢家得 IRQ_ID=7，输家得 0（gateway 仲裁）"
+[[iface]]
+name = "complete"
+bits = "[31:0] hwirq"
+note = "写回 IRQ_ID：in-flight→0，源可再次投递（漏写则永久卡住）"
+[[iface]]
+name = "MSIP"
+bits = "[3:0] per-hart"
+note = "CLINT 软件中断位；写 1=敲 IPI，从核确认清 0"
+
+[wave]
+signals = ["clk", "rst", "irq_assert", "claim_req", "claim_hart", "claim_id", "complete_req", "msip", "won", "winner"]
