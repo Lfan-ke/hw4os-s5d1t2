@@ -1,5 +1,5 @@
 /* S10 · 内核入口/测试驱动（给定）：跌入 U 态跑用户态应用集，回收后报告。
- * 承接 S8（U 态 + syscall）/ S9（libc）：用户程序基于 ulib 求服务、自检后退出。 */
+ * 承接 S08（U 态 + syscall）/ S09（libc）：用户程序基于 ulib 求服务、自检后退出。 */
 #include "app.h"
 
 /* 内核 callee-saved 保存区（被 uentry.S 使用）。 */
@@ -12,7 +12,7 @@ volatile long g_exit_code = -1;
 volatile long g_proc_done = 0;
 
 void kmain(void) {
-    kputs("\n[S10] userland: sort + template + MD->ANSI TUI (U mode via S9 libc)\n");
+    kputs("\n[S10] userland: sort + template + MD->ANSI TUI (U mode via S09 libc)\n");
     trap_init(); /* stvec -> __alltraps */
 
     kputs("entering U mode, running user apps...\n\n");

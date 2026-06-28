@@ -25,7 +25,7 @@ forbid    = ["FAIL", "panic", "UNEXPECTED"]
 timeout_s = 20
 
 [[hint]]
-text = "三个用户程序都跑在 U 态（沿用 S8 的 run_user/ecall），经 ulib 的 u_puts/u_write 走 SYS_WRITE 求服务、不直接碰内核控制台。你只需补 app_sort.c 的 partition() 与 app_template.c 的 render() 替换循环。"
+text = "三个用户程序都跑在 U 态（沿用 S08 的 run_user/ecall），经 ulib 的 u_puts/u_write 走 SYS_WRITE 求服务、不直接碰内核控制台。你只需补 app_sort.c 的 partition() 与 app_template.c 的 render() 替换循环。"
 [[hint]]
 text = "快排 Lomuto 划分：pivot=a[hi]；i 从 lo 起；j 扫 lo..hi-1，遇 a[j]<pivot 就 swap(a[i],a[j]) 并 i++；最后 swap(a[i],a[hi]) 把枢轴归位，return i。占位 return hi 不划分 → 数组不会被排好 → 出不了 SORT_PASS。"
 [[hint]]

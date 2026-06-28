@@ -2,15 +2,15 @@
 
 > 与 `exercises/proper/S10b-rootfs` 同构；此处 `kernel/cpio.c` 的 `cpio_parse_one`
 > 与 `kernel/main.c` 的 `load_and_run_init` 已实现。
-> 把 S7（RAM-fs）与 S8（U 态/syscall）接成「内核启动尾声」：解包 initramfs → 跑 /init。
+> 把 S07（RAM-fs）与 S08（U 态/syscall）接成「内核启动尾声」：解包 initramfs → 跑 /init。
 
 ## 主线（kmain，给定）
 
 ```
-fs_mkfs()                              一张空 RAM 根文件系统（承 S7）
+fs_mkfs()                              一张空 RAM 根文件系统（承 S07）
 cpio_unpack(initramfs_cpio, len)       逐条解析 newc 头 → fs_create + fs_write 灌进 RAM-fs
 fs_lookup("init")                      在 fs 里定位 /init
-load_and_run_init()                    fs_read /init → run_user 跌入 U 态（承 S8）
+load_and_run_init()                    fs_read /init → run_user 跌入 U 态（承 S08）
                                        /init 经 ecall 打印 banner、exit(0)，longjmp 回内核
 ```
 

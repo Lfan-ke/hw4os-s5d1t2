@@ -1,4 +1,4 @@
-/* S7 · 简易文件系统（易 easy-fs 抽象，全在 RAM 盘上）。
+/* S07 · 简易文件系统（易 easy-fs 抽象，全在 RAM 盘上）。
  *
  * 盘上布局（块为单位）：
  *   block 0           : 超级块 superblock

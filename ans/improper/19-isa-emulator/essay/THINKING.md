@@ -78,7 +78,7 @@ DiffTest 的威力来自两点：
 - **加指令**：补齐 RV64I 的算术/移位/比较（sll/srl/sra/slt/and/or/xor、各 imm 变体）、
   乘除（M 扩展）、更多 load/store 宽度与符号（lb/lh/lw/lbu/...）。每加一条就用 DiffTest 守门。
 - **加 CSR 与异常/中断**：实现 `mstatus`/`mepc`/`mcause`/`mtvec`、`ecall`/`ebreak`、
-  时钟中断——这样就能跑真正的内核 trap 流程（正是本仓 proper 赛道 S2 在做的事）。
+  时钟中断——这样就能跑真正的内核 trap 流程（正是本仓 proper 赛道 S02 在做的事）。
 - **接真参考**：把黄金轨迹换成**在线对拍 Spike/QEMU**（NEMU 的 difftest so 模式）：
   每步把 DUT 状态和参考同步、比对，能验证任意程序而不只是预录的小程序。
 - **加 watchpoint / itrace**：记录指令轨迹、在某寄存器/内存被写成某值时停下，

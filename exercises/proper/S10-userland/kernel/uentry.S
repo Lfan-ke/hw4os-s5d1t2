@@ -1,4 +1,4 @@
-# S10 · U 态进入 / syscall 返回内核（给定，沿用 S8）。
+# S10 · U 态进入 / syscall 返回内核（给定，沿用 S08）。
 #   run_user(entry=a0, ustack=a1)：把内核 callee-saved 现场存入 kctx，
 #       清 sstatus.SPP(bit8) 使 sret 落到 U 态，置 sepc=entry、sp=ustack，sret 进 U 态。
 #   return_to_kernel()：从 kctx 恢复现场并 ret —— 等价于 longjmp 回 kmain 中 run_user 的调用点。

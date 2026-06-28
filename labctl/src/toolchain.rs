@@ -36,6 +36,20 @@ pub fn build_available(build: &str) -> bool {
         "qemu-virt" => {
             which("make") && which("qemu-system-riscv64") && which("riscv64-unknown-elf-gcc")
         }
+        // host 多命令真工具链（proper/S09b-linking）：真 gcc/ar/readelf/objdump/ld.so/dlopen + RV 交叉 + qemu-user
+        "make-host" => {
+            which("make")
+                && which("gcc")
+                && which("ar")
+                && which("readelf")
+                && which("nm")
+                && which("ldd")
+                && which("objdump")
+                && which("file")
+                && which("riscv64-linux-gnu-gcc")
+                && which("riscv64-linux-gnu-objdump")
+                && which("qemu-riscv64")
+        }
         _ => false,
     }
 }

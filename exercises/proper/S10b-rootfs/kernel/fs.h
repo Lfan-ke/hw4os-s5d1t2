@@ -1,6 +1,6 @@
-/* S7 · 块设备 + 内核内简易文件系统（RAM 盘）：共享声明。 */
-#ifndef S7_FS_H
-#define S7_FS_H
+/* S07 · 块设备 + 内核内简易文件系统（RAM 盘）：共享声明。 */
+#ifndef S07_FS_H
+#define S07_FS_H
 #include <stdint.h>
 
 /* —— 块设备几何 —— */

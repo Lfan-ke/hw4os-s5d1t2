@@ -31,8 +31,8 @@ labctl verify               # 全量记分板
 
 ## 设计哲学：最小 + 留白 + 可扩展（教学为主）
 
-- **最小依赖**：每题只实现「当下用得到」的——S8 只写 `sys_write`/`sys_exit`（**不是 360+ 个 syscall**）、
-  S9 是迷你 libc（不是完整 musl）、S11 net 只做 ARP/IP/UDP（不是全栈）、S12 GUI 是软件 framebuffer（不接真 virtio-GPU）。
+- **最小依赖**：每题只实现「当下用得到」的——S08 只写 `sys_write`/`sys_exit`（**不是 360+ 个 syscall**）、
+  S09 是迷你 libc（不是完整 musl）、S11 net 只做 ARP/IP/UDP（不是全栈）、S12 GUI 是软件 framebuffer（不接真 virtio-GPU）。
   像 rcore ch1-8，**逐阶段只补必需**，绝不一上来就全量。
 - **复杂处给定**：trap 入口汇编、`__switch` 上下文切换、`minlibc` 本体、设备树解析等「过于复杂 / 与本题无关」的部件**已提供**，你只填核心 TODO。
 - **留白 TODO**：每题把核心逻辑挖成 `// TODO` 或 `// TODO-or-else`（择一分支），由你补全。

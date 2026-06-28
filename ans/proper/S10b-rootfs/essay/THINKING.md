@@ -4,7 +4,7 @@
 
 bootloader 把内核与一段 **initramfs**（cpio 归档）一起加载进内存。内核启动到尾声时：
 
-1. 在内存里建一张空的根文件系统（真实 Linux 是 **tmpfs/rootfs**；本实验是 S7 的 RAM-fs）。
+1. 在内存里建一张空的根文件系统（真实 Linux 是 **tmpfs/rootfs**；本实验是 S07 的 RAM-fs）。
 2. **解开 cpio**：逐条读头 → 在根 fs 里 `create` 同名文件 → 把数据 `write` 进去
    （Linux 在 `init/initramfs.c` 的 `unpack_to_rootfs`；本实验是 `cpio_unpack`）。
 3. 内核执行根目录下的 **`/init`**——这是**第一个用户态进程**（PID 1）。控制权由 S 态内核
@@ -61,4 +61,4 @@ initramfs 打破死循环：它是一段**与内核一起加载、解进内存�
 - **S10b**：用户程序作为**文件**躺在 initramfs 里，内核要**解包 → 建进 fs → 按名查找 →
   读字节进缓冲 → 才能运行**。多出来的这层间接（归档→文件系统→载入）正是真实系统的形态：
   内核与用户程序解耦、可独立更新、可有任意多个文件。本实验的 `/init` 用扁平机器码绕开了
-  ELF 解析；补上 ELF program header 映射，就是通向 `execve` 的下一步（接 S8b/mmap）。
+  ELF 解析；补上 ELF program header 映射，就是通向 `execve` 的下一步（接 S08b/mmap）。

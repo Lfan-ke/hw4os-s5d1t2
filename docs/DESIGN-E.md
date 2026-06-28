@@ -13,7 +13,7 @@
 - **正经赛道（proper）· 工程落地**：在 rcore 基础上，从引导起步，在 **qemu-virt 真内核**上一步步搭出一个「相对完整」的 OS（boot→trap→多任务→分页→进程→文件→网络→多核→虚拟化→微内核）。
 - **形态赛道（forms）· 入门科普**：五大内核形态（宏/微/外/库/框）+ 混合的架构权衡，引 xv6/seL4/jos/unikraft/asterinas 真实例。
 
-设计原则：**简化的是学生负担，不是功能完整性**；**最小依赖 + 留白 TODO + 复杂处给定 + 可扩展引申**（每题只实现当下用得到的，如 S8 仅 sys_write/exit 而非 360 syscall，像 rcore ch1-8；完整版作引申，学生可凭兴趣自行扩成完整 OS）。ISA 基准 **RV64GC**。
+设计原则：**简化的是学生负担，不是功能完整性**；**最小依赖 + 留白 TODO + 复杂处给定 + 可扩展引申**（每题只实现当下用得到的，如 S08 仅 sys_write/exit 而非 360 syscall，像 rcore ch1-8；完整版作引申，学生可凭兴趣自行扩成完整 OS）。ISA 基准 **RV64GC**。
 
 > 答案目录约定：题面在 `exercises/<track>/<id>/`（含 `// TODO`），配套参考答案统一放根目录 **`ans/<track>/<id>/`**（labctl `--solutions` 验证 + 学生卡住时参考）。
 
@@ -25,7 +25,7 @@
 `01` 硬件管理 VLAN · `02` 进程调度 · `03` 编译链接 · `04` 线程 · `05` 纤程(有栈协程) · `06` 无栈协程 · `07` IPC 原子锁 · `08` 文件系统(块设备→inode) · `09` 设备文件(一切皆文件) · **`09b` VFS(多 FS 统一接口+挂载)** · `10` 内存(分层/swap) · `11` 堆与栈 · `12` 地址空间(软件 MMU) · `13` 共享内存 · `14` 特权级 · `15` 引导握手 · `16` 驱动(MMIO/设备树) · `17` BSP 板级 · `18` 系统调用 · **`19` ISA 模拟器(NEMU 式解释器+DiffTest)** · **`20` signal 异步事件** · **`21` TCP 状态机** · **`22` namespace+cgroup 容器隔离** · **`23` epoll I/O 多路复用** · **`24` 迷你发行版/rootfs(FHS+busybox+init+cpio)** · **`25` 组件化内核(arceos 式可组装)**
 
 ### 正经 · 工程落地（29，qemu-virt 真内核）
-`S1` SBI 引导 · **`S1b` 裸机最小标准库(core+alloc/newlib)** · `S2` trap+时钟 · `S3` 内核形态 · `S4` 异步运行时 · `S5` 协作调度 · **`S5b` 内核堆(free-list)** · **`S5c` SV39 真分页** · **`S5d` 阻塞同步(mutex/sem/condvar)** · **`S5e` fork+CoW+exec+wait** · `S6` 驱动(NS16550+dtb) · **`S6b` AM 式 HAL(TRM/IOE/CTE)** · **`S6c` PLIC 外部中断** · `S7` 文件系统(RAM 盘) · **`S7b` 内核 VFS(vtable/vnode)** · `S8` 用户态+syscall · **`S8b` mmap+按需调页** · `S9` 迷你 libc · `S10` 用户程序(排序/模板/TUI) · **`S10b` cpio initramfs→/init** · `S11` 网络(ARP/IP/UDP) · `S12` GUI(framebuffer+html/css) · `S13` 多核启动 · `S14` IPC(管道/消息/共享) · `S15` SMP(自旋/读写锁) · `S16` AMP 大小核 · `S17` 虚拟化(H 扩展软件模型) · `S18` mini-TCG · `S19` 微 vs 宏内核
+`S01` SBI 引导 · **`S01b` 裸机最小标准库(core+alloc/newlib)** · `S02` trap+时钟 · `S03` 内核形态 · `S04` 异步运行时 · `S05` 协作调度 · **`S05b` 内核堆(free-list)** · **`S05c` SV39 真分页** · **`S05d` 阻塞同步(mutex/sem/condvar)** · **`S05e` fork+CoW+exec+wait** · `S06` 驱动(NS16550+dtb) · **`S06b` AM 式 HAL(TRM/IOE/CTE)** · **`S06c` PLIC 外部中断** · `S07` 文件系统(RAM 盘) · **`S07b` 内核 VFS(vtable/vnode)** · `S08` 用户态+syscall · **`S08b` mmap+按需调页** · `S09` 迷你 libc · `S10` 用户程序(排序/模板/TUI) · **`S10b` cpio initramfs→/init** · `S11` 网络(ARP/IP/UDP) · `S12` GUI(framebuffer+html/css) · `S13` 多核启动 · `S14` IPC(管道/消息/共享) · `S15` SMP(自旋/读写锁) · `S16` AMP 大小核 · `S17` 虚拟化(H 扩展软件模型) · `S18` mini-TCG · `S19` 微 vs 宏内核
 
 ### 形态 · 入门科普（6）
 `F1` 宏内核 · `F2` 微内核 · `F3` 外核 · `F4` 库内核/unikernel · `F5` 框内核(framekernel/Asterinas) · `F6` 混合内核
@@ -35,7 +35,7 @@
 ### 参考来源（取长补短，皆本地只读）
 - **rcore**（`~/tgln/stage1/2026s-tg-rcore-Lfan-ke`）：ch1-8 教学 OS，正经赛道主线节奏。
 - **arceos**（`~/tgln/stage2/2026s-tg-arceos-Lfan-ke`）：组件化/可组装内核 → `improper/25-component-os`。
-- **YSYX**（`~/ysyx`）：NEMU 解释器+DiffTest → `improper/19`；AM(TRM/IOE/CTE/VME/MPE) HAL → `proper/S6b`。
+- **YSYX**（`~/ysyx`）：NEMU 解释器+DiffTest → `improper/19`；AM(TRM/IOE/CTE/VME/MPE) HAL → `proper/S06b`。
 - **material**（`~/tgln/stage2/material`）：覆盖 RISC-V 全栈的真实系统源码 + 88 篇演化笔记，gap 分析与各实验取材的资源库（索引 `notes/00-01`）。
 - **oscamp-base-experiment**（atomic/async/coroutine Rust 参考）、**DatenLord**（BSV 语法）、**xv6/seL4/jos/unikraft/Asterinas**（material/core，形态赛道真实例）。
 
@@ -1009,46 +1009,46 @@ graph LR
 
 **子实验（逐题递进）**：
 
-1. **S1 · 硬件向量分发器（MCU 模型）**　① 填 `vec_dispatch` 的组合 mux：`handler_pc = mode ? (base + (cause<<2)) : base; accept = trap_req;`（软件变体填同公式的 `dispatch()` + 一张 `vector[16]` 表的 `table[cause]` 查表）。`// TODO[a]` 仅实现向量化公式，`// ELSE[b]` 额外把 direct 模式也接上。② 变体[hw-v / hw-bsv / sw-rust / sw-c]——这是本课的"软硬同构"锚点。③ 环境[hw：common/hw 的 tb；sw：host]。④ tb/harness 喂一串 `(mode,base,cause)` 比对 `handler_pc`，依次打印 `DIRECT_PASS`/`VECTORED_PASS`/`DISPATCH_PASS`/`S1_PASS`，0 warning。⑤ require=1。
+1. **S01 · 硬件向量分发器（MCU 模型）**　① 填 `vec_dispatch` 的组合 mux：`handler_pc = mode ? (base + (cause<<2)) : base; accept = trap_req;`（软件变体填同公式的 `dispatch()` + 一张 `vector[16]` 表的 `table[cause]` 查表）。`// TODO[a]` 仅实现向量化公式，`// ELSE[b]` 额外把 direct 模式也接上。② 变体[hw-v / hw-bsv / sw-rust / sw-c]——这是本课的"软硬同构"锚点。③ 环境[hw：common/hw 的 tb；sw：host]。④ tb/harness 喂一串 `(mode,base,cause)` 比对 `handler_pc`，依次打印 `DIRECT_PASS`/`VECTORED_PASS`/`DISPATCH_PASS`/`S01_PASS`，0 warning。⑤ require=1。
 
-2. **S2 · Trap 上下文保存/恢复（the trap frame）**　① 填三段：`save(regs)→TrapContext` 快照调用者寄存器；按 `scause` 选 handler（可改 `a0`）；`restore`：ecall 时 `sepc+=4`、返回 `a0`，并保证其余 31 个寄存器逐个不变。`// TODO[a]` host 上把寄存器建模成结构体数组实现；`// ELSE[b]` 进阶：在 qemu-virt 用真实 RV64 汇编写 `__alltraps`/`__restore`。② 变体[sw-rust / sw-c]。③ 环境[host；ELSE 分支 qemu-virt]。④ harness 给定寄存器向量，校验"返回值正确 + 其余寄存器不变 + sepc 正确"，打印 `SAVE_PASS`/`RESTORE_PASS`/`RETVAL_PASS`/`S2_PASS`。⑤ require=1。
+2. **S02 · Trap 上下文保存/恢复（the trap frame）**　① 填三段：`save(regs)→TrapContext` 快照调用者寄存器；按 `scause` 选 handler（可改 `a0`）；`restore`：ecall 时 `sepc+=4`、返回 `a0`，并保证其余 31 个寄存器逐个不变。`// TODO[a]` host 上把寄存器建模成结构体数组实现；`// ELSE[b]` 进阶：在 qemu-virt 用真实 RV64 汇编写 `__alltraps`/`__restore`。② 变体[sw-rust / sw-c]。③ 环境[host；ELSE 分支 qemu-virt]。④ harness 给定寄存器向量，校验"返回值正确 + 其余寄存器不变 + sepc 正确"，打印 `SAVE_PASS`/`RESTORE_PASS`/`RETVAL_PASS`/`S02_PASS`。⑤ require=1。
 
-3. **S3 · Syscall ABI 分发表（GNU 规范化）**　① 填 `syscall(regs)` 分发：`match regs.a7 { 64=>sys_write, 93=>sys_exit, 172=>sys_getpid, _=> -ENOSYS }`，结果写回 `regs.a0`；再填三个 handler 体：`sys_write` 把 `(a1,a2)` 指的字节回显到捕获缓冲并打印、`sys_getpid` 返回固定 pid、`sys_exit` 记录退出码。② 变体[sw-rust / sw-c]。③ 环境[host]。④ harness 为每个调用构造 `Regs` 并校验 `a0` 与副作用，打印 `NR_WRITE_PASS`/`NR_GETPID_PASS`/`NR_EXIT_PASS`/`DISPATCH_PASS`/`S3_PASS`（未知号必须 `-ENOSYS`）。⑤ require=1。
+3. **S03 · Syscall ABI 分发表（GNU 规范化）**　① 填 `syscall(regs)` 分发：`match regs.a7 { 64=>sys_write, 93=>sys_exit, 172=>sys_getpid, _=> -ENOSYS }`，结果写回 `regs.a0`；再填三个 handler 体：`sys_write` 把 `(a1,a2)` 指的字节回显到捕获缓冲并打印、`sys_getpid` 返回固定 pid、`sys_exit` 记录退出码。② 变体[sw-rust / sw-c]。③ 环境[host]。④ harness 为每个调用构造 `Regs` 并校验 `a0` 与副作用，打印 `NR_WRITE_PASS`/`NR_GETPID_PASS`/`NR_EXIT_PASS`/`DISPATCH_PASS`/`S03_PASS`（未知号必须 `-ENOSYS`）。⑤ require=1。
 
-4. **S4 · 真实 `ecall` 往返（user→kernel→user 的安检门）**　① `// TODO[a]`（qemu-user，命中真实 GNU/Linux ABI）：用内联汇编写 `syscall3` 包装，装 `a7=64,a0=1,a1=buf,a2=len` 执行 `ecall`，再 `exit(0)`，让进程真的把 `HELLO_SYSCALL` 打到 stdout。`// ELSE[b]`（qemu-virt，完整特权跨越）：设 `stvec`、跌入 U 态、U 态 `ecall` → 自写 S 态 `trap_entry` 存上下文、读 `scause=8`、按 `a7` 分发 `sys_write` 到 UART、`sepc+=4` 后 `sret` 返回。② 变体[sw-rust / sw-c，各自含 a/b 环境择一]。③ 环境[qemu-user 或 qemu-virt]。④ 输出含子串 `HELLO_SYSCALL` 且打印 `ECALL_PASS`/`SYSRET_PASS`/`S4_PASS`；`forbid` 命中 `FAIL`/`panic`/`ERROR` 即挂。⑤ require=1。
+4. **S04 · 真实 `ecall` 往返（user→kernel→user 的安检门）**　① `// TODO[a]`（qemu-user，命中真实 GNU/Linux ABI）：用内联汇编写 `syscall3` 包装，装 `a7=64,a0=1,a1=buf,a2=len` 执行 `ecall`，再 `exit(0)`，让进程真的把 `HELLO_SYSCALL` 打到 stdout。`// ELSE[b]`（qemu-virt，完整特权跨越）：设 `stvec`、跌入 U 态、U 态 `ecall` → 自写 S 态 `trap_entry` 存上下文、读 `scause=8`、按 `a7` 分发 `sys_write` 到 UART、`sepc+=4` 后 `sret` 返回。② 变体[sw-rust / sw-c，各自含 a/b 环境择一]。③ 环境[qemu-user 或 qemu-virt]。④ 输出含子串 `HELLO_SYSCALL` 且打印 `ECALL_PASS`/`SYSRET_PASS`/`S04_PASS`；`forbid` 命中 `FAIL`/`panic`/`ERROR` 即挂。⑤ require=1。
 
-5. **S5 · 思考题（essay）**　见末节，答案文件非空/含关键字即过。
+5. **S05 · 思考题（essay）**　见末节，答案文件非空/含关键字即过。
 
 **变体矩阵与计分**：
 
 | 子实验 | sw-rust | sw-c | hw-v | hw-bsv | essay | require | 辅助分点 |
 | :-- | :--: | :--: | :--: | :--: | :--: | :--: | :-- |
-| S1 向量分发 | ✓ | ✓ | ✓ | ✓ | | 1 | 每多过 1 条 +1（尤其 sw↔hw 跨轴各通一遍） |
-| S2 上下文 | ✓ | ✓ | | | | 1 | 另一语言、或 `ELSE[b]` 真汇编版各 +1 |
-| S3 分发表 | ✓ | ✓ | | | | 1 | 另一语言 +1 |
-| S4 ecall 往返 | ✓ | ✓ | | | | 1 | 另一语言、或同时打通 qemu-user 与 qemu-virt 两环境 +1 |
-| S5 思考题 | | | | | ✓ | 1 | —（essay 不计辅助分） |
+| S01 向量分发 | ✓ | ✓ | ✓ | ✓ | | 1 | 每多过 1 条 +1（尤其 sw↔hw 跨轴各通一遍） |
+| S02 上下文 | ✓ | ✓ | | | | 1 | 另一语言、或 `ELSE[b]` 真汇编版各 +1 |
+| S03 分发表 | ✓ | ✓ | | | | 1 | 另一语言 +1 |
+| S04 ecall 往返 | ✓ | ✓ | | | | 1 | 另一语言、或同时打通 qemu-user 与 qemu-virt 两环境 +1 |
+| S05 思考题 | | | | | ✓ | 1 | —（essay 不计辅助分） |
 
-默认 `require=1`（任一路径过即过）；超出 require 的每条通过路径进**独立辅助分账本**。S1 的四变体齐全，是建议鼓励学生软硬都跑、亲手对比"硬件多连几根线 vs 软件多写几行查表"的成本锚点。
+默认 `require=1`（任一路径过即过）；超出 require 的每条通过路径进**独立辅助分账本**。S01 的四变体齐全，是建议鼓励学生软硬都跑、亲手对比"硬件多连几根线 vs 软件多写几行查表"的成本锚点。
 
 **前置依赖**：
-- `improper/01-hw-vlan`——继承"软硬同构 + `*_PASS` 判题范式 + 0-warning 门"，S1 直接复用这套心智。
-- `improper/<线程管理>`（id 待定）——"上下文 = CSR+GPRs"，S2 的 TrapContext 是它的直接应用。
-- `improper/<三态转换>`（id 待定）——特权级即"几根线"，S4 的 U→S 跨越建立在此之上。
-- `improper/<引导入门>`（id 待定）——"先置位 CSR 才能用功能"，S4 需先正确设置 `stvec` 陷入才生效。
+- `improper/01-hw-vlan`——继承"软硬同构 + `*_PASS` 判题范式 + 0-warning 门"，S01 直接复用这套心智。
+- `improper/<线程管理>`（id 待定）——"上下文 = CSR+GPRs"，S02 的 TrapContext 是它的直接应用。
+- `improper/<三态转换>`（id 待定）——特权级即"几根线"，S04 的 U→S 跨越建立在此之上。
+- `improper/<引导入门>`（id 待定）——"先置位 CSR 才能用功能"，S04 需先正确设置 `stvec` 陷入才生效。
 
 **简化取舍**（简化的是学生负担，非功能完整性）：
 - cause 压成 4-bit、向量表 16 项；只做 direct/vectored 两态，**不做**中断优先级/嵌套/抢占（NVIC priority / 可剥夺性）——留作引申。
-- S2/S3 默认在 host 把寄存器建模成结构体，免去真实 CSR 机器；想要"真味道"的人走 `ELSE[b]` 的 qemu 汇编/裸机分支。
+- S02/S03 默认在 host 把寄存器建模成结构体，免去真实 CSR 机器；想要"真味道"的人走 `ELSE[b]` 的 qemu 汇编/裸机分支。
 - syscall 表只取 write/exit/getpid 三号代表，**不**铺全 ~300 个 Linux 号；号值用真实 RV64 ABI 以保持 GNU 规范味。
-- host 模型不真正强制特权隔离，真实 U/S 安检仅在 S4 的 qemu-virt 分支体现。
+- host 模型不真正强制特权隔离，真实 U/S 安检仅在 S04 的 qemu-virt 分支体现。
 - **完整版引申**：可剥夺嵌套中断 + 优先级控制器（PLIC/CLINT/NVIC）、完整 Linux syscall 表与 errno、可重启系统调用（`ERESTARTSYS`）、vDSO 旁路、`sigreturn` 等。
 
 **DoD**：
-- [ ] S1 至少一条路径（软或硬）打印 `S1_PASS`，且能说清"向量化 = `base+4*cause` 的硬件间接跳转"。
-- [ ] S2 通过：返回值正确、其余寄存器逐位不变、`sepc` 正确（`S2_PASS`）。
-- [ ] S3 通过：三个号正确分发、未知号返回 `-ENOSYS`（`S3_PASS`）。
-- [ ] S4 通过：真实 `ecall` 往返打出 `HELLO_SYSCALL` 并 `S4_PASS`（qemu-user 或 qemu-virt 任一）。
+- [ ] S01 至少一条路径（软或硬）打印 `S01_PASS`，且能说清"向量化 = `base+4*cause` 的硬件间接跳转"。
+- [ ] S02 通过：返回值正确、其余寄存器逐位不变、`sepc` 正确（`S02_PASS`）。
+- [ ] S03 通过：三个号正确分发、未知号返回 `-ENOSYS`（`S03_PASS`）。
+- [ ] S04 通过：真实 `ecall` 往返打出 `HELLO_SYSCALL` 并 `S04_PASS`（qemu-user 或 qemu-virt 任一）。
 - [ ] 硬件变体 0 warning；能讲出"MCU 裸中断 → MPU 受控 syscall"这条演化线（思考题）。
 
 **思考题**（essay 子题）：
@@ -1065,86 +1065,86 @@ harness 约定（贯穿所有阶段）：每个阶段的实验落在 `exercises/
 
 ---
 
-## 阶段 S1 · 传统引导与 SBI（boot）
+## 阶段 S01 · 传统引导与 SBI（boot）
 - 目标：理解从 SBI 到 S 态内核启动的全过程，认识 SBI 是对内核与基础外设初始化的通用固件，理解 QEMU 以 SBI 作前置引导内核。
 - 关键实验：
-  - S1a SBI 调用入门：`ecall` 进 M 态，按 SBI 规范的 EID/FID 约定调 console putchar/getchar、shutdown。
-  - S1b 自制 mini-SBI（M 态固件）：设异常委托、跳入 S 态内核，可被 `qemu -bios` 引导。
-  - S1c timer SBI 扩展：实现 `sbi_set_timer` 等 timer 扩展，驱动时钟中断（为后续抢占/异步打基础）。
+  - S01a SBI 调用入门：`ecall` 进 M 态，按 SBI 规范的 EID/FID 约定调 console putchar/getchar、shutdown。
+  - S01b 自制 mini-SBI（M 态固件）：设异常委托、跳入 S 态内核，可被 `qemu -bios` 引导。
+  - S01c timer SBI 扩展：实现 `sbi_set_timer` 等 timer 扩展，驱动时钟中断（为后续抢占/异步打基础）。
 - 依赖：rcore。
 - 产出物：可被 QEMU 引导的 mini-SBI；内核经 SBI 完成 putchar/timer 的最小引导链；`env=qemu-virt`，引导/timer 可选 `hw-v`/`hw-bsv` 寄存器置位模型。
 
-## 阶段 S2 · HAL 抽象层（riscv64 + loongarch）
+## 阶段 S02 · HAL 抽象层（riscv64 + loongarch）
 - 目标：把架构相关代码抽成统一接口，参考 polyhal 但简化为点到为止的对比实验，后续内核统一构建在 HAL 之上（主线仍走 rv64）。
 - 关键实验：
-  - S2a 定义 HAL 接口：上下文切换、trap 入口、页表/MMU 操作、时钟、控制台。
-  - S2b riscv64 实现（主线）。
-  - S2c loongarch64 实现：仅实现有特点的几项，对比 CSR/异常模型差异。
-- 依赖：S1。
+  - S02a 定义 HAL 接口：上下文切换、trap 入口、页表/MMU 操作、时钟、控制台。
+  - S02b riscv64 实现（主线）。
+  - S02c loongarch64 实现：仅实现有特点的几项，对比 CSR/异常模型差异。
+- 依赖：S01。
 - 产出物：跨架构 HAL crate（rv64 完整、loongarch 点到为止）；后续阶段以 HAL 为底座。
 
-## 阶段 S3 · 内核形态认知（库核心 / 外核 / RTOS）
+## 阶段 S03 · 内核形态认知（库核心 / 外核 / RTOS）
 - 目标：建立 unikernel（库 OS）、exokernel（外核）、RTOS 三种内核形态的心智模型，并体验 RTOS 的运行时/SDK 高级封装。
 - 关键实验：
-  - S3a 库核心（unikernel）认知：应用与内核同地址空间链成单镜像，用直接函数调用替代 syscall。
-  - S3b 外核（exokernel）认知：内核只做安全多路复用，硬件抽象上移到 libOS。
-  - S3c 简易 RTOS + 运行时/用户 SDK/包：静态任务集，提供高级封装的 loop/start API 与用户 SDK。
-- 依赖：S1（S2 可选）。
+  - S03a 库核心（unikernel）认知：应用与内核同地址空间链成单镜像，用直接函数调用替代 syscall。
+  - S03b 外核（exokernel）认知：内核只做安全多路复用，硬件抽象上移到 libOS。
+  - S03c 简易 RTOS + 运行时/用户 SDK/包：静态任务集，提供高级封装的 loop/start API 与用户 SDK。
+- 依赖：S01（S02 可选）。
 - 产出物：三种最小形态 demo + RTOS SDK/包，`env=qemu-virt`。
 
-## 阶段 S4 · embassy 式异步运行时
+## 阶段 S04 · embassy 式异步运行时
 - 目标：实现无栈协程 + executor，视为 RTOS 的异步（aos）衍生，理解多道分时系统的嵌入式变体（无让出即退化为顺序/批处理）。
 - 关键实验：
-  - S4a Future/poll + 最小 executor。
-  - S4b 基于 timer/中断的异步等待（waker），对接 S1c 的 timer。
-  - S4c embassy 式静态分配 async runtime。
-- 依赖：S1c、S3c。
+  - S04a Future/poll + 最小 executor。
+  - S04b 基于 timer/中断的异步等待（waker），对接 S01c 的 timer。
+  - S04c embassy 式静态分配 async runtime。
+- 依赖：S01c、S03c。
 - 产出物：异步运行时 crate（供后续调度器与 IPC 复用）。
 
-## 阶段 S5 · 调度器抽象（队列 / 优先级 / 异步）
+## 阶段 S05 · 调度器抽象（队列 / 优先级 / 异步）
 - 目标：可插拔调度器框架，实现多种调度策略（类比 tg-rcore，独立抽离）。
 - 关键实验：
-  - S5a 队列调度（FIFO/RR）。
-  - S5b 优先级调度：用优先队列替代 Vec，高优先先出队。
-  - S5c 异步调度：把 S4 的 executor 接入调度器，协程任务参与调度。
-- 依赖：S4。
+  - S05a 队列调度（FIFO/RR）。
+  - S05b 优先级调度：用优先队列替代 Vec，高优先先出队。
+  - S05c 异步调度：把 S04 的 executor 接入调度器，协程任务参与调度。
+- 依赖：S04。
 - 产出物：`Scheduler` trait + 三种实现，单核 OS 起可热切换。
 
-## 阶段 S6 · 驱动入门（裸机 / dd / 平台总线）
+## 阶段 S06 · 驱动入门（裸机 / dd / 平台总线）
 - 目标：建立设备访问与可插拔驱动框架，方便新硬件无缝集成并供用户态调用。
 - 关键实验：
-  - S6a 裸机 MMIO 驱动：手写 UART 字符设备驱动。
-  - S6b dd 式块设备驱动：virtio-blk，配合镜像刷写/读取。
-  - S6c 平台总线：dtb/fdt 解析 + 驱动表字符匹配 + driver-probe（现代平台总线简化版）。
-- 依赖：S2（HAL）。
+  - S06a 裸机 MMIO 驱动：手写 UART 字符设备驱动。
+  - S06b dd 式块设备驱动：virtio-blk，配合镜像刷写/读取。
+  - S06c 平台总线：dtb/fdt 解析 + 驱动表字符匹配 + driver-probe（现代平台总线简化版）。
+- 依赖：S02（HAL）。
 - 产出物：可插拔驱动框架 + UART/blk 驱动；驱动类可附 `hw-v`/`hw-bsv` 设备模型。
 
-## 阶段 S7 · 文件系统（ramfs / easyfs / ext2 + 伪文件）
+## 阶段 S07 · 文件系统（ramfs / easyfs / ext2 + 伪文件）
 - 目标：VFS 之上支持多种文件系统与状态/设备文件。
 - 关键实验：
-  - S7a ramfs（内存文件系统）。
-  - S7b easyfs（块设备上的 inode/目录项，移植/对接 rcore easyfs）。
-  - S7c ext2（先只读、再读写）。
-  - S7d 伪文件系统：`/proc/**` 状态文件、`/dev/**` 字符设备文件。
-- 依赖：S6（块/字符驱动）。
+  - S07a ramfs（内存文件系统）。
+  - S07b easyfs（块设备上的 inode/目录项，移植/对接 rcore easyfs）。
+  - S07c ext2（先只读、再读写）。
+  - S07d 伪文件系统：`/proc/**` 状态文件、`/dev/**` 字符设备文件。
+- 依赖：S06（块/字符驱动）。
 - 产出物：VFS + 三套 fs + procfs/devfs。
 
-## 阶段 S8 · 系统调用与进程模型 —— 单核 OS 集成里程碑
-- 目标：整合 S1/S2/S5/S6/S7，落地 trap/syscall ABI 与进程模型，完成"先完成一个单核心的 OS"。
+## 阶段 S08 · 系统调用与进程模型 —— 单核 OS 集成里程碑
+- 目标：整合 S01/S02/S05/S06/S07，落地 trap/syscall ABI 与进程模型，完成"先完成一个单核心的 OS"。
 - 关键实验：
-  - S8a trap/syscall ABI：按 GNU 规范组织系统调用，用户/内核态切换。
-  - S8b 进程/线程：`fork`、`exec`（ELF 加载）、`wait`、`exit`。
-  - S8c 文件类 syscall：`open`/`read`/`write`/`close`/`dup` 接 VFS。
-  - S8d 并发 API 谱系：讲 win/unix/linux/mac 差异并各选其一实现——`pthread`、Linux `epoll`、Linux `io_uring`、mac 的 `poll`/kqueue（任一过即过，多实现计辅助分）。
-- 依赖：S5、S6、S7、S2。
+  - S08a trap/syscall ABI：按 GNU 规范组织系统调用，用户/内核态切换。
+  - S08b 进程/线程：`fork`、`exec`（ELF 加载）、`wait`、`exit`。
+  - S08c 文件类 syscall：`open`/`read`/`write`/`close`/`dup` 接 VFS。
+  - S08d 并发 API 谱系：讲 win/unix/linux/mac 差异并各选其一实现——`pthread`、Linux `epoll`、Linux `io_uring`、mac 的 `poll`/kqueue（任一过即过，多实现计辅助分）。
+- 依赖：S05、S06、S07、S02。
 - 产出物：可 `fork/exec/open` 跑用户程序的单核多任务 OS（里程碑）。
 
-## 阶段 S9 · libc（musl/glibc/newlib/llvm 简化，任一过即过）
+## 阶段 S09 · libc（musl/glibc/newlib/llvm 简化，任一过即过）
 - 目标：为用户程序提供 C/Rust 运行时，简化为只实现实验程序所需接口，多途径任一过即过。
 - 关键实验：
-  - S9a 最小 libc：crt0、syscall 封装、malloc、printf，对接 S8 syscall。
-  - S9b 支持 Rust 的 std 子集，或移植 musl/newlib/llvm-libc 子集（择一过即过，可全过拿辅助分）。
-- 依赖：S8。
+  - S09a 最小 libc：crt0、syscall 封装、malloc、printf，对接 S08 syscall。
+  - S09b 支持 Rust 的 std 子集，或移植 musl/newlib/llvm-libc 子集（择一过即过，可全过拿辅助分）。
+- 依赖：S08。
 - 产出物：简化 libc + Rust std 子集。
 
 ## 阶段 S10 · 用户程序（算法 + 模板引擎 + TUI 的 MD→ANSI 组件）
@@ -1153,7 +1153,7 @@ harness 约定（贯穿所有阶段）：每个阶段的实验落在 `exercises/
   - S10a 基础算法程序（排序/查找等），验证工具链与 libc。
   - S10b 简易模板引擎。
   - S10c 简易 TUI 框架：一个 MD 组件，读特定 MD 格式 → 输出 ANSI 转义美化文本到终端（丐版组件即可）。
-- 依赖：S9。
+- 依赖：S09。
 - 产出物：用户态应用集（算法/模板引擎/MD→ANSI TUI）。
 
 ## 阶段 S11 · 网络（参考 xv6）
@@ -1161,7 +1161,7 @@ harness 约定（贯穿所有阶段）：每个阶段的实验落在 `exercises/
 - 关键实验：
   - S11a virtio-net/e1000 驱动（参考 xv6）。
   - S11b 简易协议栈（ARP/IP/UDP）+ socket syscall 子集。
-- 依赖：S6、S8。
+- 依赖：S06、S08。
 - 产出物：网络驱动 + 简易栈 + socket。
 
 ## 阶段 S12 · 简易 GUI（virtio-GPU + html/css→GUI 转译）
@@ -1170,9 +1170,9 @@ harness 约定（贯穿所有阶段）：每个阶段的实验落在 `exercises/
   - S12a virtio-GPU 驱动 + framebuffer，简易 GUI 程序（画点/矩形/文字）。
   - S12b GUI 库封装（控件/布局）。
   - S12c html/css 子集解析 → GUI 转译绘制。
-- 依赖：S6、S9/S10。
+- 依赖：S06、S09/S10。
 - 产出物：GUI 库 + html/css 渲染 demo。
-- 小结：S8–S12 完成一个"相对完整"的单核 OS（内核 + 驱动 + fs + 网络 + libc + 用户态 + GUI）。
+- 小结：S08–S12 完成一个"相对完整"的单核 OS（内核 + 驱动 + fs + 网络 + libc + 用户态 + GUI）。
 
 ## 阶段 S13 · 多核 OS（多槽多跳板）
 - 目标：从单核改造为多核启动（多 hart），引入多跳板与多槽位信息交换。
@@ -1180,15 +1180,15 @@ harness 约定（贯穿所有阶段）：每个阶段的实验落在 `exercises/
   - S13a 多 hart 启动（HSM SBI 扩展），每核独立 trampoline（多跳板）。
   - S13b 多槽位交换：为每核设公共槽位，分析多槽的功能。
   - S13c 思考/实现：为什么槽位放在直接映射（恒等映射）区交换信息，而非虚拟地址空间——各核/各进程页表不同，只有物理地址是各核共识，恒等映射区在切页表前后地址稳定可寻。
-- 依赖：S8、S2。
+- 依赖：S08、S02。
 - 产出物：可多核启动的 OS + 多槽多跳板机制。
 
 ## 阶段 S14 · IPC 与异步通信
 - 目标：进程间通信 + 异步消息机制。
 - 关键实验：
   - S14a 同步 IPC：管道/共享内存（mmap）/信号。
-  - S14b 异步通信：消息队列/无锁环形缓冲，接 S4 异步运行时。
-- 依赖：S13、S4。
+  - S14b 异步通信：消息队列/无锁环形缓冲，接 S04 异步运行时。
+- 依赖：S13、S04。
 - 产出物：IPC 子系统（同步 + 异步）。
 
 ## 阶段 S15 · SMP（RWLOCK 而非 spin）
@@ -1203,8 +1203,8 @@ harness 约定（贯穿所有阶段）：每个阶段的实验落在 `exercises/
 - 目标：非对称多处理，大小核拓扑识别与调度。
 - 关键实验：
   - S16a 区分大核/小核（算力/特性），拓扑识别。
-  - S16b 任务亲和/迁移，大小核调度策略（接 S5 调度器）。
-- 依赖：S15、S5。
+  - S16b 任务亲和/迁移，大小核调度策略（接 S05 调度器）。
+- 依赖：S15、S05。
 - 产出物：大小核 AMP 调度。
 
 ## 阶段 S17 · 虚拟化（H 扩展，简易 type1 VMM）
@@ -1228,13 +1228,13 @@ harness 约定（贯穿所有阶段）：每个阶段的实验落在 `exercises/
 - 关键实验：
   - S19a 宏内核形态：驱动/fs 在内核态。
   - S19b 微内核改造：驱动/fs/服务移到用户态，经 IPC 通信，对比两者。
-  - S19c 简易驱动系统收尾：用户态可插拔驱动框架（结合 S6 与微内核形态）。
-- 依赖：S15、S14、S6。
+  - S19c 简易驱动系统收尾：用户态可插拔驱动框架（结合 S06 与微内核形态）。
+- 依赖：S15、S14、S06。
 - 产出物：宏/微内核双形态 + 可插拔驱动系统，收尾为"相对完整的 OS"。
 
 ---
 
-依赖主链：rcore → S1 → S2 → S3 → S4 → S5 →（S6 → S7）→ S8（单核 OS 里程碑）→ S9 → S10 →（S11、S12，单核 userland 完整）→ S13 → S14 → S15 → S16 → S17 → S18 → S19（收尾）。其中 S6 仅需 S2、S11/S12 仅需单核栈，可与相邻阶段并行；S14 还需 S4，S16 还需 S5。
+依赖主链：rcore → S01 → S02 → S03 → S04 → S05 →（S06 → S07）→ S08（单核 OS 里程碑）→ S09 → S10 →（S11、S12，单核 userland 完整）→ S13 → S14 → S15 → S16 → S17 → S18 → S19（收尾）。其中 S06 仅需 S02、S11/S12 仅需单核栈，可与相邻阶段并行；S14 还需 S04，S16 还需 S05。
 
 ## 七、已落实的决策（原「待商议」）
 

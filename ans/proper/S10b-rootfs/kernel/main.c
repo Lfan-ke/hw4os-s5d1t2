@@ -4,7 +4,7 @@
  *       在 fs 里定位 /init → 把它读进可执行缓冲、跌入 U 态运行 → 回收报告。
  * 四道判据：CPIO_PARSE / POPULATE / INIT_FOUND / USERSPACE，全过打印 ALL_PASS。
  *
- * 复用：fs.*（承 S7 的块设备 + inode/目录 RAM-fs）、uentry.S/syscall.c（承 S8 的 U 态往返）。 */
+ * 复用：fs.*（承 S07 的块设备 + inode/目录 RAM-fs）、uentry.S/syscall.c（承 S08 的 U 态往返）。 */
 #include "app.h"
 #include "fs.h"
 #include "initramfs.h"
@@ -54,7 +54,7 @@ static int check_populate(void) {
  *   1) ino = fs_lookup("init")；找不到（ino<0）就直接返回（USERSPACE 不会通过）。
  *   2) n = fs_read(ino, init_exec, sizeof init_exec)；读到 0 字节也直接返回。
  *   3) run_user((uint64_t)init_exec, 用户栈顶)；跌入 U 态执行 /init。
- *      /init（机器码，承 S8 的 ecall 约定）会 sys_write 打印 banner、再 sys_exit(0)，
+ *      /init（机器码，承 S08 的 ecall 约定）会 sys_write 打印 banner、再 sys_exit(0)，
  *      经 return_to_kernel() longjmp 回到这里 run_user 调用点之后。
  * HINT：用户栈顶 = (uint64_t)((char*)user_stack + sizeof(user_stack))。
  * ========================================================================= */

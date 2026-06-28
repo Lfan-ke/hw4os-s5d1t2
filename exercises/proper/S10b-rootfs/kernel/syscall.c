@@ -1,4 +1,4 @@
-/* S8 · trap 入口设置 + U 态 ecall 的 syscall 分发（参考解）。 */
+/* S08 · trap 入口设置 + U 态 ecall 的 syscall 分发（参考解）。 */
 #include "app.h"
 #include "riscv.h"
 

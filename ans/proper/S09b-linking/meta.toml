@@ -1,0 +1,36 @@
+id      = "S09b-linking"
+title   = "正经·S09b · 真工具链：gcc -c→ET_REL / ar·-static vs -shared / readelf / RV-PLT / dlopen"
+track   = "proper"
+require = 1
+# env：proper 惯例 qemu-virt，但本课跑真 host 工具链 + qemu-user（E4 RV），
+#      env 字段当前 dead_code 不参与 build 选择，故置 host（有意例外，详见 README）。
+env     = "host"
+weight  = 1
+
+[[variant]]
+id    = "toolchain"
+axis  = "software"
+lang  = "c"
+dir   = "toolchain"
+build = "make-host"          # 新增 build 类型：变体目录跑 `make -s test`
+
+[[variant]]
+id    = "essay"
+axis  = "essay"
+lang  = "text"
+dir   = "essay"
+build = "essay"
+
+[judge]
+expect    = ["ETREL_PASS", "STATIC_PASS", "READELF_PASS", "RVPLT_PASS", "DLOPEN_PASS", "ALL_PASS"]
+forbid    = ["FAIL", "panic", "UNEXPECTED"]
+timeout_s = 60               # 真 -static glibc 链接 + RV 交叉 + qemu，留足时间
+
+[[hint]]
+text = "E1 gcc -c hello.c 产 hello.o = ET_REL（readelf -h 看 Type: REL）：只有节没有程序头，chmod +x 直接跑报 Exec format error（exit 126）。nm 因 printf(\"hello\\n\") 被优化成 puts，故是 'T main'+'U puts'。"
+[[hint]]
+text = "E2 gcc -static vs 默认动态体积差 ~49x；ldd 静态 'not a dynamic executable'（注意写到 stderr，须 2>&1）、动态 'libc.so.6'。ar rcs libX.a 打静态库(ar t 列成员)；gcc -shared -fPIC 产 .so(file 显 shared object)。.a 不是 ELF，别 readelf 它。"
+[[hint]]
+text = "E3 readelf -d 看 NEEDED/BIND_NOW；-l 看 INTERP 与 LOAD（binutils 2.42 实测 4 个 LOAD，判 >=2 不能 ==2）；-r 看 RELATIVE/GLOB_DAT/JUMP_SLO（x86 名被截断成 JUMP_SLO，grep 子串）。Ubuntu 默认就是 BIND_NOW，看经典 lazy 须 -Wl,-z,lazy -no-pie。"
+[[hint]]
+text = "E4 riscv64-linux-gnu-gcc -no-pie -Wl,-z,lazy；puts@plt 三条 auipc t3 / ld t3,off(t3) / jalr t1,t3（算 GOT 地址→装真实地址→间接跳）；readelf -r 见 R_RISCV_JUMP_SLOT。反汇编 RV 必须用 riscv64-linux-gnu-objdump。qemu 动态版必须 -L /usr/riscv64-linux-gnu。E5 dlopen RTLD_NOW 缺符号立即 'undefined symbol'。"

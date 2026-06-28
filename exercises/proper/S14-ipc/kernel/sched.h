@@ -1,5 +1,5 @@
 /* S14 · 协作式两任务运行时（IPC 的载体，给定）。
- * 复用 S5 的 TaskContext + __switch：生产者/消费者两个协作任务在单核上轮流上 CPU，
+ * 复用 S05 的 TaskContext + __switch：生产者/消费者两个协作任务在单核上轮流上 CPU，
  * 靠 ipc_yield() 主动让出。IPC 实验本身只关心“两任务怎么传数据”，
  * 这套最小调度器只是把它们拉起来、轮转、跑完退出。 */
 #ifndef S14_SCHED_H

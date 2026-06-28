@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include "kernel.h"
 
-/* uentry.S 提供：进入 U 态 / 从 syscall 长跳回内核（同 S8）。 */
+/* uentry.S 提供：进入 U 态 / 从 syscall 长跳回内核（同 S08）。 */
 void run_user(uint64_t entry, uint64_t ustack); /* 设 sstatus.SPP=0、sepc、sp 后 sret */
 void return_to_kernel(void);                     /* 恢复 kctx 后 ret 回 kmain（longjmp 风） */
 extern uint64_t kctx[14];                         /* 内核 callee-saved 保存区 ra,sp,s0..s11 */
@@ -25,7 +25,7 @@ extern volatile long g_proc_done;
 /* U 态 ecall 的 scause code */
 #define SCAUSE_U_ECALL 8UL
 
-/* —— ulib：极简用户态运行时（S9 libc 丐版）。只靠 ecall 求服务，不直接碰内核控制台。—— */
+/* —— ulib：极简用户态运行时（S09 libc 丐版）。只靠 ecall 求服务，不直接碰内核控制台。—— */
 long usyscall(long n, long a0, long a1, long a2);
 unsigned long u_strlen(const char *s);
 int  u_strcmp(const char *a, const char *b);

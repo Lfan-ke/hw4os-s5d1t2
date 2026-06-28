@@ -1,16 +1,16 @@
-/* S10b · 本实验共享声明：U 态运行（承 S8）+ cpio/initramfs 解包。
- * RAM-fs（块设备 + inode/目录）见 fs.h（承 S7）。 */
+/* S10b · 本实验共享声明：U 态运行（承 S08）+ cpio/initramfs 解包。
+ * RAM-fs（块设备 + inode/目录）见 fs.h（承 S07）。 */
 #ifndef OSLAB_S10B_APP_H
 #define OSLAB_S10B_APP_H
 #include <stdint.h>
 #include "kernel.h"
 
-/* —— U 态进入 / syscall 返回内核（uentry.S，承 S8，已给）—— */
+/* —— U 态进入 / syscall 返回内核（uentry.S，承 S08，已给）—— */
 void run_user(uint64_t entry, uint64_t ustack); /* 清 sstatus.SPP、设 sepc/sp 后 sret */
 void return_to_kernel(void);                     /* 恢复 kctx 后 ret 回 kmain（longjmp 风） */
 extern uint64_t kctx[14];                        /* 内核 callee-saved 保存区 */
 
-/* —— syscall（syscall.c，承 S8，已给）—— */
+/* —— syscall（syscall.c，承 S08，已给）—— */
 long do_syscall(long n, long a0, long a1, long a2);
 extern volatile long g_exit_code;
 extern volatile long g_proc_done;

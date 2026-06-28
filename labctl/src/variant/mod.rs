@@ -75,6 +75,7 @@ pub fn run_variant(ex: &Exercise, base_dir: &Path, v: &Variant, build_root: &Pat
         "iverilog" => run_iverilog(&vdir, &bdir, timeout_s),
         "bsc" => run_bsc(&vdir, &bdir, v, timeout_s),
         "qemu-virt" => run_qemu_virt(&vdir, timeout_s),
+        "make-host" => run_make_host(&vdir, timeout_s),
         other => Err(format!("未知 build 关键字: {}", other)),
     };
 
@@ -220,6 +221,25 @@ fn run_qemu_virt(dir: &Path, timeout_s: u64) -> Result<RunOutput, String> {
         output: s.clone(),
         warnings,
         log: format!("{mkerr}{s}"),
+    })
+}
+
+// ── make-host（host 多命令工具链：Makefile 跑真 gcc/ar/readelf/objdump/ld.so/dlopen + RV 交叉，echo *_PASS）──
+// 仿 run_qemu_virt：`make -s test` 在变体目录跑，各子目标内部 grep 工具输出、只 echo 一枚 *_PASS/*_FAIL token，
+// 由 judge 的 expect/forbid 子串匹配判定。`-s` 抑制命令回显，避免工具输出杂字误触 forbid。
+fn run_make_host(dir: &Path, timeout_s: u64) -> Result<RunOutput, String> {
+    let run = exec_run(
+        "make",
+        &[OsString::from("-s"), OsString::from("test")],
+        dir,
+        timeout_s,
+    )?;
+    let s = combine(&run);
+    let warnings = s.matches("warning:").count();
+    Ok(RunOutput {
+        output: s.clone(),
+        warnings,
+        log: s,
     })
 }
 

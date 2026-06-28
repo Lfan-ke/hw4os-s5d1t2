@@ -1,6 +1,6 @@
 # 正经·S10b · initramfs：解开内嵌 cpio → 灌进 RAM-fs → 交棒 /init
 
-> 承接 S7（块设备 + inode/目录 RAM-fs）与 S8（U 态 + ecall syscall）。
+> 承接 S07（块设备 + inode/目录 RAM-fs）与 S08（U 态 + ecall syscall）。
 > 本课把两条线接起来，演一遍真实内核启动尾声那一幕：**内核如何把棒子交给用户态**——
 > 解开一段 **initramfs**（内嵌的 cpio 归档），把里面的文件灌进根文件系统，
 > 在 fs 里找到 **/init**，载入并在 U 态把它跑起来。
@@ -11,13 +11,13 @@ Linux 启动到最后，内核手里只有一段被 bootloader 一起加载进�
 一个 cpio 归档。内核把它解开成一棵临时根目录树（`/init`、`/etc`…），然后执行 `/init`，
 **第一个用户态进程**就此诞生，启动流从内核交棒到用户态。本实验把这一幕做成最小骨架：
 
-1. `fs_mkfs()`（承 S7，已给）：先有一张空的 RAM 根文件系统。
+1. `fs_mkfs()`（承 S07，已给）：先有一张空的 RAM 根文件系统。
 2. `cpio_unpack()`：逐条解析内嵌的 newc cpio 归档，把每个成员 `fs_create + fs_write` 灌进 RAM-fs。
 3. `fs_lookup("init")`：在 fs 里定位 `/init`。
 4. `load_and_run_init()`：把 `/init` 的字节读进可执行缓冲，`run_user()` 跌入 U 态运行
-   （承 S8）。`/init` 是一段机器码，经 `ecall` 打印 banner、再 `exit(0)`，内核回收。
+   （承 S08）。`/init` 是一段机器码，经 `ecall` 打印 banner、再 `exit(0)`，内核回收。
 
-> 无分页：用户与内核同地址空间，仅特权级隔离（承 S8）。`/init` 直接是机器码而非 ELF——
+> 无分页：用户与内核同地址空间，仅特权级隔离（承 S08）。`/init` 直接是机器码而非 ELF——
 > 把「从 rootfs 载入并执行」的主线打通，ELF 解析留作引申。
 
 ## 1. 你要实现的（两处 TODO）
@@ -56,5 +56,5 @@ make -C kernel run      # 手动跑（OpenSBI banner 后见内核输出）
 - **newc 格式细节**：定长 ASCII 头、4 字节对齐、`TRAILER!!!` 收尾、硬链接用 `c_ino` 合并。
 - **initramfs vs initrd**：前者是 tmpfs 上解开的 cpio（无需块设备/文件系统驱动），后者是块设备镜像。
 - **pivot_root / switch_root**：`/init` 把真正的根挂到别处后切换根、再 `exec` 真 `/sbin/init`（如 systemd/busybox）。
-- **ELF 加载**：真 `/init` 是 ELF，需解析 program header、按段映射；本实验用扁平机器码绕开（接 S8b/mmap）。
+- **ELF 加载**：真 `/init` 是 ELF，需解析 program header、按段映射；本实验用扁平机器码绕开（接 S08b/mmap）。
 - **对照 S10**：S10 把用户程序直接编进内核镜像；本课从 rootfs 里**载入**——多了「解包→建 fs→查找→载入」一层间接，正是真实系统的形态。

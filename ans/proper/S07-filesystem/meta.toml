@@ -1,0 +1,32 @@
+id      = "S07-filesystem"
+title   = "正经·S07 · 文件系统：块设备 + 内核内简易 FS（RAM 盘）"
+track   = "proper"
+require = 1
+env     = "qemu-virt"
+weight  = 1
+
+[[variant]]
+id    = "kernel-c"
+axis  = "software"
+lang  = "c"
+dir   = "kernel"
+build = "qemu-virt"
+
+[[variant]]
+id    = "essay"
+axis  = "essay"
+lang  = "text"
+dir   = "essay"
+build = "essay"
+
+[judge]
+expect    = ["BLK_PASS", "FS_PASS", "LS_PASS", "ALL_PASS"]
+forbid    = ["FAIL", "panic", "UNEXPECTED"]
+timeout_s = 15
+
+[[hint]]
+text = "ialloc：扫描 inode 0..ninodes，iread 出来看 type==T_FREE 的就占用——置 type、清零其余字段、iwrite 写回，返回 inum；扫不到返回 -1。"
+[[hint]]
+text = "dir_lookup：目录的数据就是一串 32 字节 dirent。项数 = dir.size/sizeof(dirent)，第 i 项落在直接块 addrs[i/DPB] 的第 (i%DPB) 个槽位。bread 该块、kmemcpy 出 dirent、kstreq 比名字。"
+[[hint]]
+text = "目录项跨块存放：DPB=16（每块 16 项）。别忘了把 inum 也读出来返回；查无返回 -1。"

@@ -1,0 +1,34 @@
+id      = "S04-async"
+title   = "正经·S04 · embassy 式异步运行时：Future/poll + 最小 executor + 延时 future(waker)"
+track   = "proper"
+require = 1
+env     = "qemu-virt"
+weight  = 1
+
+[[variant]]
+id    = "kernel-c"
+axis  = "software"
+lang  = "c"
+dir   = "kernel"
+build = "qemu-virt"
+
+[[variant]]
+id    = "essay"
+axis  = "software"
+lang  = "essay"
+dir   = "essay"
+build = "essay"
+
+[judge]
+expect    = ["POLL_PASS", "EXEC_PASS", "TIMER_FUTURE_PASS", "ALL_PASS"]
+forbid    = ["FAIL", "panic", "UNEXPECTED"]
+timeout_s = 15
+
+[[hint]]
+text = "无栈协程 = 被反复 poll 的状态机：跨让出点存活的状态放进 struct Task(state/n/wake_tick)，不是函数栈。poll 返回 Pending/Ready。"
+[[hint]]
+text = "count_poll：state<n 时 state++、打标签、want=WAKE_NOW、返回 PENDING；否则 out=magic、返回 READY。delay_poll：g_ticks>=wake_tick 则 READY，否则 want=WAKE_TIMER 返回 PENDING。"
+[[hint]]
+text = "exec_run：内层循环取就绪任务并 poll——Pending 时 WAKE_NOW 重新入就绪队列、WAKE_TIMER 挂到 reactor，Ready 丢弃；就绪队列空但 reactor 非空时 wfi 等时钟中断、再 reactor_wake_due() 唤回到期任务。"
+[[hint]]
+text = "退化提醒：若 poll 从不返回 Pending(永不让出)，executor 退化为顺序批处理(输出 AABBCC 而非交错 ABCABC)——这正是‘无让出即顺序执行’。"

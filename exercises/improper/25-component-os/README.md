@@ -93,7 +93,7 @@ labctl hint improper/25-component-os    # 卡住看提示
    `axdriver`（设备）。再加一种 `KernelConfig` 拼出 **hypervisor 形态**（对照 arceos 的 `axvm`/
    AxVisor），印证母题「同一套组件、不同拼法拼出 unikernel / 宏内核 / hypervisor」。
 4. **把 syscall 边界做真**：本课 `syscall_boundary` 只是 `traps += 1` 的计数；真实形态差别在
-   **地址空间隔离 + 特权级切换**（unikernel app/OS 同 ring，宏内核要 U/S 态陷入）。对照 `proper/S8`
+   **地址空间隔离 + 特权级切换**（unikernel app/OS 同 ring，宏内核要 U/S 态陷入）。对照 `proper/S08`
    的真实 syscall、forms-F4 的「同地址空间零陷入」，把那道「陷入墙」从计数器换成真页表/特权级。
 5. **接口稳定性与版本治理**：组件能热替换的前提是**契约稳定**。看看 arceos 怎么用
    `crate_interface`（声明接口与实现解耦）、版本号约束依赖；想想契约一旦要改（加个方法）时

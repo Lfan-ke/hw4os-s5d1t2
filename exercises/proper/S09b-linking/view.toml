@@ -1,0 +1,94 @@
+# S09b-linking 可视化（榨满 node/edge/flow/iface；节点标签精简，细节落到场景/接口栏）。
+# 真工具链流水线：.c → ET_REL → {静态各塞一份(大)/动态名字引用(小)} → readelf 解剖
+#  → 运行期 PLT/GOT 由 ld.so 回填 → dlopen 插件。对照 03b 软件模型，这里全是真产物真命令。
+
+[[node]]
+id = "src"
+label = ".c源码(printf→puts)"
+[[node]]
+id = "obj"
+label = "gcc -c→.o(ET_REL,跑不了)"
+[[node]]
+id = "static"
+label = "-static/.a:各塞一份(785K)"
+[[node]]
+id = "shared"
+label = "-shared/.so:名字引用(16K)"
+[[node]]
+id = "readelf"
+label = "readelf 解剖ELF"
+[[node]]
+id = "plt"
+label = "运行期PLT/GOT(ld.so回填)"
+[[node]]
+id = "dlopen"
+label = "dlopen插件(缺符号失败)"
+
+[[edge]]
+from = "src"
+to   = "obj"
+[[edge]]
+from = "obj"
+to   = "shared"
+[[edge]]
+from = "shared"
+to   = "readelf"
+[[edge]]
+from = "obj"
+to   = "static"
+[[edge]]
+from = "readelf"
+to   = "plt"
+[[edge]]
+from = "plt"
+to   = "dlopen"
+
+[[flow]]
+name = "E1-ET_REL"
+path = ["src", "obj"]
+note = "gcc -c 出 .o=ET_REL，无程序头/INTERP，chmod +x 也 Exec format error → ETREL_PASS"
+[[flow]]
+name = "E2-静vs动"
+path = ["obj", "static", "shared"]
+note = "静态各塞一份(785K) vs 动态名字引用(16K，~49x)；ar/.a vs -shared/.so → STATIC_PASS"
+[[flow]]
+name = "E3-readelf解剖"
+path = ["shared", "readelf"]
+note = "readelf -d/-l/-r 看 NEEDED/INTERP/LOAD/重定位，lazy vs BIND_NOW → READELF_PASS"
+[[flow]]
+name = "E4-RV-PLT"
+path = ["readelf", "plt"]
+note = "RV puts@plt auipc/ld/jalr + R_RISCV_JUMP_SLOT + qemu-user 实跑出 hello → RVPLT_PASS"
+[[flow]]
+name = "E5-dlopen"
+path = ["plt", "dlopen"]
+note = "dlopen/dlsym 正常路径(answer=42) + 坏插件 RTLD_NOW 缺符号失败 → DLOPEN_PASS"
+[[flow]]
+name = "对照-03b模型"
+path = ["readelf", "plt"]
+note = "lookup↔find_sym、GOT回填↔do_relocs、共享一份↔page cache(inode)——软件模型的真产物版"
+
+[[iface]]
+name = "ET_REL"
+bits = "Type:REL"
+note = "gcc -c 产物：只有节无程序头；execve 拒绝(exit 126 Exec format error)"
+[[iface]]
+name = "PIE"
+bits = "Type:DYN"
+note = "默认动态可执行=PIE(DYN)；要 EXEC 须 -no-pie(判 LOAD>=2 不能==2)"
+[[iface]]
+name = "JUMP_SLO"
+bits = "R_*JUMP"
+note = "x86 readelf 把 JUMP_SLOT 截断成 JUMP_SLO，grep 用子串；RV 不截断"
+[[iface]]
+name = "RV_PLT"
+bits = "3条指令"
+note = "puts@plt：auipc 算 GOT 项地址→ld 装真实地址(ld.so 回填)→jalr 间接跳"
+[[iface]]
+name = "INTERP"
+bits = "ld-linux"
+note = "动态 ELF 的解释器；RV 动态版 qemu 须 -L /usr/riscv64-linux-gnu 才找得到"
+[[iface]]
+name = "size"
+bits = "~49x"
+note = "静态(~785K) vs 动态(~16K)：省下的是整份 glibc 代码(动态共享/按需加载)"

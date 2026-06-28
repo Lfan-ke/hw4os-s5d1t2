@@ -1,4 +1,4 @@
-/* S10 · ulib —— 极简用户态运行时（S9 libc 的丐版，给定）。
+/* S10 · ulib —— 极简用户态运行时（S09 libc 的丐版，给定）。
  * 三个用户程序复用它求服务：所有输出都经 ecall(SYS_WRITE) 走系统调用，
  * 而非直接调用内核 console_putchar —— U 态程序只认「调用号 + 寄存器约定」。 */
 #include "app.h"

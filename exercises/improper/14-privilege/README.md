@@ -117,7 +117,7 @@ make -C hw/bsv sim   # BSV 仿真
 
 本课把陷入抽象成单根 `trap` 线、三态状态字只用 5 位，刻意抽掉了 `mtvec`/`mcause`/委托/中断。把这几根线"接全",可往这些方向深入：
 
-1. **补全陷入机制**：把单 `trap` 线扩成"跳 `mtvec` + 写 `mcause`/`mepc`/`mtval` + 按 `medeleg`/`mideleg` 委托到 S 态"，实现真正的分级陷入下放（衔接正经赛道 S2 trap 内核）。
+1. **补全陷入机制**：把单 `trap` 线扩成"跳 `mtvec` + 写 `mcause`/`mepc`/`mtval` + 按 `medeleg`/`mideleg` 委托到 S 态"，实现真正的分级陷入下放（衔接正经赛道 S02 trap 内核）。
 2. **CSR 文件化**：把 5 位状态字铺成真实 `mstatus`/`sstatus` 位域（`MIE`/`SIE`/`MPP`/`SPP`/`MPRV`/`SUM`/`MXR`），实现 `mret` 时 `MIE←MPIE`、`MPP←U` 的中断使能栈与降权语义。
 3. **加第四级 + 虚拟化**：按 RISC-V H 扩展加 `VS`/`VU` 态与 `hstatus`、二级地址翻译，亲手验证"特权级数量↑ → 保存前态位宽↑、陷入处理复杂度↑"（呼应思考题 2）。
 4. **门控具体化**：把抽象 `feat_en` 落成真实使能——`satp` 开 MMU、PMP/PMA 物理内存保护——做成"特权够 **且** 区域允许"的双重与门，对照 seL4 的 capability 检查。

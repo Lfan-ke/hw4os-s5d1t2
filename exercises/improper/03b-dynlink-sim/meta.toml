@@ -1,0 +1,49 @@
+id      = "03b-dynlink-sim"
+title   = "动态链接加载器（软件建模）· 静态各塞一份 vs 动态按 key 共享 + ld.so 解析回填 GOT"
+track   = "improper"
+require = 1               # C/Rust 任一过即过；essay 独立计辅助分
+env     = "host"          # 全程软件建模 ld.so，host 直接跑
+weight  = 1
+
+# ── 软件双语言路径（同一动态链接建模逻辑的两种写法）──────────────
+[[variant]]
+id    = "sw-rust"
+axis  = "software"
+lang  = "rust"
+dir   = "sw/rust"
+build = "cargo"
+
+[[variant]]
+id    = "sw-c"
+axis  = "software"
+lang  = "c"
+dir   = "sw/c"
+build = "gcc-host"
+
+# ── essay 思考题（关键字判，独立辅助账）──────────────────────────
+[[variant]]
+id    = "essay"
+axis  = "software"
+lang  = "essay"
+dir   = "essay"
+build = "essay"
+
+# ── 统一判题口径（逐题 *_PASS 累计，全过 ALL_PASS）───────────────
+[judge]
+expect    = ["STATIC_PASS", "DYNSYM_PASS", "RESOLVE_PASS", "SHARE_PASS", "BIND_PASS", "DLOPEN_PASS", "ALL_PASS"]
+forbid    = ["FAIL", "panic", "ERROR"]
+timeout_s = 30
+
+# ── 渐进提示（意境→现实，逐题点拨）────────────────────────────────
+[[hint]]
+text = 'E1 静态：static_total_space(n) 体会"各塞一份"——每个程序 = 自身 OWN_CODE + 一整份 LIB_CODE 拷贝，n 个就是 n*(OWN_CODE+LIB_CODE)。make_static 直接 clone/*lib 把库塞进去（自包含）。'
+[[hint]]
+text = 'E2 动态符号表：make_dyn 不塞库，只 needed=[库名] + 对每个外部符号建一个【空】GOT 槽（Rust resolved:None / C resolved=0）。这对应真实 .so 的 DT_NEEDED + 空 .got.plt。'
+[[hint]]
+text = 'E3 ld.so 解析（核心）：Library::lookup 按【符号名 key】遍历 symbols，命中返回 base+偏移（这就是"匹配 key 全局找公共"）；resolve 遍历每个 GOT 空槽、用 lookup 把真实地址回填进去。对应 musl do_relocs/find_sym：真实地址 = 库基址 + 库内偏移。'
+[[hint]]
+text = 'E4 空间对比：dyn_total_space = 一份共享 LIB_CODE + n*(OWN_CODE + n_syms*GOT_SLOT)。n=100 时静态 120000B vs 动态 23400B——库只算一份、各程序只多一张小 GOT，这正是动态库省内存的本质。'
+[[hint]]
+text = 'E5 绑定时机：now_bind 加载时解析【全部】槽（返回槽数）；lazy_bind 只解析 used 里被实际调用的符号（首次调用才回填）。3 个符号只调 1 个时 now=3、lazy=1——lazy 省下未用符号的解析开销。'
+[[hint]]
+text = 'E6 dlopen：dlopen 把库插进 Registry；dlsym 先按库名找库、再 lookup 符号；缺库或缺符号返回 Err / *err=1（绝不 panic/崩溃）——对应"没这个符号，调用就失败"。'

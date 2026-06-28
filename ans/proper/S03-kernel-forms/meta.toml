@@ -1,0 +1,34 @@
+id      = "S03-kernel-forms"
+title   = "正经·S03 · 内核形态认知：unikernel / RTOS / exokernel"
+track   = "proper"
+require = 1
+env     = "qemu-virt"
+weight  = 1
+
+[[variant]]
+id    = "kernel-c"
+axis  = "software"
+lang  = "c"
+dir   = "kernel"
+build = "qemu-virt"
+
+[[variant]]
+id    = "essay"
+axis  = "essay"
+lang  = "text"
+dir   = "essay"
+build = "essay"
+
+[judge]
+expect    = ["UNIKERNEL_PASS", "RTOS_PASS", "EXOKERNEL_PASS", "ALL_PASS"]
+forbid    = ["FAIL", "panic", "UNEXPECTED"]
+timeout_s = 15
+
+[[hint]]
+text = "unikernel：应用与内核同镜像同地址空间，没有特权边界，应用'调用 syscall'退化为普通函数调用（main.c 已给）。"
+[[hint]]
+text = "RTOS 协作式 yield：rtos_yield() 用 __switch(&task_ctx[current], &sched_ctx) 把 CPU 交还调度器；调度器 rtos_run() 轮询 READY 任务并 __switch 进去，直到全部 EXITED。"
+[[hint]]
+text = "__switch 只存/取被调用者保存寄存器(ra/sp/s0-s11)即可描述一个栈帧；新任务的 ctx.ra=bootstrap、ctx.sp=该任务栈顶。"
+[[hint]]
+text = "exokernel：内核只做'安全多路复用'——按边界检查发资源句柄(exo_grant)，抽象(写字符串)放在 libOS 函数里(libos_write_str)。"

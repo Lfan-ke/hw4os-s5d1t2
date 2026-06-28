@@ -1,0 +1,32 @@
+id      = "S06c-plic"
+title   = "正经·S06c · PLIC 外部中断：从设备中断到 claim/complete 握手"
+track   = "proper"
+require = 1
+env     = "qemu-virt"
+weight  = 1
+
+[[variant]]
+id    = "kernel-c"
+axis  = "software"
+lang  = "c"
+dir   = "kernel"
+build = "qemu-virt"
+
+[[variant]]
+id    = "essay"
+axis  = "writing"
+lang  = "text"
+dir   = "essay"
+build = "essay"
+
+[judge]
+expect    = ["PLIC_SETUP_PASS", "IRQ_PASS", "RX_PASS", "COMPLETE_PASS", "ALL_PASS"]
+forbid    = ["FAIL", "panic", "UNEXPECTED"]
+timeout_s = 20
+
+[[hint]]
+text = "qemu virt：PLIC@0x0c000000，UART(NS16550)@0x10000000，UART 的 PLIC 中断源号=10。PLIC 寄存器：priority[src]=BASE+4*src；enable[ctx]=BASE+0x2000+ctx*0x80（源在第 src 位）；threshold[ctx]=BASE+0x200000+ctx*0x1000；claim/complete=同上+4。"
+[[hint]]
+text = "context 编号：每 hart 两个，hartN 的 S-context = 2N+1。-smp 4 下启动 hart 不确定，按当前 hartid（SBI 经 a0 传入）配置自己的 S-context（类比 xv6 plicinithart）。"
+[[hint]]
+text = "claim/complete 握手：读 claim 寄存器原子取得 irq 号并清 pending；务必读 UART RBR 撤掉设备中断线，否则 complete 后会立刻重新 pending；最后把 irq 号写回 claim 寄存器完成。确定性自激：UART 开 IER.ERBFI(0x01)+MCR.LOOP(0x10)，写 THR 一个字节即回环成 RX 触发中断。"

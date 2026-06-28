@@ -1,6 +1,6 @@
 # 正经·S10 · 用户程序（排序 + 模板引擎 + MD→ANSI TUI）
 
-> 承接 S8（跌入 U 态 + `ecall` 系统调用）与 S9（最小 libc）。本课在自研 OS 上
+> 承接 S08（跌入 U 态 + `ecall` 系统调用）与 S09（最小 libc）。本课在自研 OS 上
 > 用「丐版 libc（`ulib`）」写出三个**真正跑在 U 态**的用户程序，验证整条工具链 +
 > syscall ABI + 运行时是通的——这是 rcore「用户程序集」那一步的最小落地。
 
@@ -21,7 +21,7 @@ ulib（U 态丐版 libc）   ──ecall(SYS_WRITE/SYS_EXIT)──▶  syscall �
    u_puts/u_write/u_putint/u_strcmp ...                  do_syscall                 SBI
 ```
 
-> 与 S8 一脉相承：U 态程序**只认调用号 + 寄存器约定**，不直接调用内核 `console_putchar`；
+> 与 S08 一脉相承：U 态程序**只认调用号 + 寄存器约定**，不直接调用内核 `console_putchar`；
 > 无分页，用户与内核同地址空间，仅靠特权级隔离（PMP 由 OpenSBI 给 S/U 全权）。
 
 ## 1. 你要实现的
@@ -75,8 +75,8 @@ make -C kernel run     # 手动跑（OpenSBI banner 后见用户程序输出）
 
 ## 4. 引申
 
-- 真正的 libc（S9 完整版）：`malloc`/`free` 堆分配、`printf` 变参、`open/read` 文件 IO，
+- 真正的 libc（S09 完整版）：`malloc`/`free` 堆分配、`printf` 变参、`open/read` 文件 IO，
   本课用静态缓冲 + `u_putint` 顶替。
 - 模板引擎完整版：条件 `{{#if}}`、循环 `{{#each}}`、转义、嵌套——本课只做最朴素的变量替换。
 - TUI 完整版：颜色主题、列表/表格/边框盒子、宽字符对齐、终端尺寸查询（`ioctl TIOCGWINSZ`）。
-- 多道用户程序：把三个 app 做成独立进程经 `fork/exec` 拉起（接 S8 进程模型），而非顺序内联。
+- 多道用户程序：把三个 app 做成独立进程经 `fork/exec` 拉起（接 S08 进程模型），而非顺序内联。

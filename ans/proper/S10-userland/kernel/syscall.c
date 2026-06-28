@@ -1,4 +1,4 @@
-/* S10 · trap 入口设置 + U 态 ecall 的 syscall 分发（给定，沿用 S8 的最小 ABI）。 */
+/* S10 · trap 入口设置 + U 态 ecall 的 syscall 分发（给定，沿用 S08 的最小 ABI）。 */
 #include "app.h"
 #include "riscv.h"
 

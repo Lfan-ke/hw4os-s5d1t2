@@ -1,0 +1,25 @@
+id      = "S02-trap-timer"
+title   = "正经·S02 · trap 与时钟中断：进入 S 态后的第一道关"
+track   = "proper"
+require = 1
+env     = "qemu-virt"
+weight  = 1
+
+[[variant]]
+id    = "kernel-c"
+axis  = "software"
+lang  = "c"
+dir   = "kernel"
+build = "qemu-virt"
+
+[judge]
+expect    = ["TIMER_PASS", "TRAP_PASS", "ALL_PASS"]
+forbid    = ["FAIL", "panic", "UNEXPECTED_TRAP"]
+timeout_s = 15
+
+[[hint]]
+text = "scause 最高位=1 表示中断；低位是原因码，S 态时钟中断码=5（riscv.h 已给 SCAUSE_INT_BIT/SCAUSE_S_TIMER）。"
+[[hint]]
+text = "时钟中断处理两步：累加 g_ticks，并 set_next_trigger() 重置比较器（否则中断风暴）。"
+[[hint]]
+text = "异常分支：打印 scause 便于调试，并把 ctx->sepc += 4 跳过出错指令以免死循环。"

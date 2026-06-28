@@ -1,0 +1,34 @@
+id      = "S08b-mmap"
+title   = "正经·S08b · mmap 与按需调页：VMA 登记、lazy 映射、缺页补帧"
+track   = "proper"
+require = 1
+env     = "qemu-virt"
+weight  = 1
+
+[[variant]]
+id    = "kernel-c"
+axis  = "software"
+lang  = "c"
+dir   = "kernel"
+build = "qemu-virt"
+
+[[variant]]
+id    = "essay"
+axis  = "essay"
+lang  = "text"
+dir   = "essay"
+build = "essay"
+
+[judge]
+expect    = ["MMAP_PASS", "FAULT_HANDLED_PASS", "LAZY_PASS", "UNMAP_PASS", "ALL_PASS"]
+forbid    = ["FAIL", "panic", "UNEXPECTED"]
+timeout_s = 20
+
+[[hint]]
+text = "mmap 是「登记」不是「分配」：只往 VMA 表写一条 {start,len,prot}，绝不在这里 frame_alloc / map_one。物理页留到真正访问时再补——这叫 lazy / 按需调页。"
+[[hint]]
+text = "缺页处理三步：stval 取出出错 VA → vma_find 查是否落在某个 VMA → 命中则 frame_alloc 一个零帧、map_one 把「这一页」映进页表、sfence.vma、返回 1。"
+[[hint]]
+text = "命中补页后千万别前移 sepc：trap.c 看到返回 1 就直接 sret，CPU 重执行那条出错的 load/store——此时页已就位，访问成功。未命中(返回 0)才是真错误，trap.c 跳过出错指令安全恢复。"
+[[hint]]
+text = "对照 S05c：那里开机就把所有页全映射好（预先全映射）；这里 mmap 后页表仍是空的，只有被触碰的页才占物理帧——未碰的页一帧不费。这就是 mmap/COW/栈自动增长共用的省内存机制。"

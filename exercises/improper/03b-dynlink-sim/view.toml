@@ -1,0 +1,120 @@
+# 03b-dynlink-sim 可视化（榨满 node/edge/flow/iface；本实验无信号故无 wave）。
+# 节点标签保持精简（主链一行读得顺），细节落到「数据流场景」与「接口」两栏。
+# 主链 = 动态链接全流程；侧边 = 静态对照分支 + ld.so 按 key 查库。
+
+[[node]]
+id = "progs"
+label = "程序们(都要 puts)"
+[[node]]
+id = "dyn"
+label = "❷动态:名字引用(小)"
+[[node]]
+id = "gotE"
+label = "空GOT槽(未解析)"
+[[node]]
+id = "ldso"
+label = "ld.so 按key查库"
+[[node]]
+id = "libc"
+label = "共享库libc(一份)"
+[[node]]
+id = "gotF"
+label = "回填GOT(真实地址)"
+[[node]]
+id = "bind"
+label = "绑定:now/lazy"
+[[node]]
+id = "registry"
+label = "dlopen注册表"
+[[node]]
+id = "static"
+label = "❶静态:各塞一份(大)"
+
+[[edge]]
+from = "progs"
+to   = "dyn"
+[[edge]]
+from = "dyn"
+to   = "gotE"
+[[edge]]
+from = "gotE"
+to   = "ldso"
+[[edge]]
+from = "ldso"
+to   = "gotF"
+[[edge]]
+from = "gotF"
+to   = "bind"
+[[edge]]
+from = "bind"
+to   = "registry"
+[[edge]]
+from = "progs"
+to   = "static"
+[[edge]]
+from = "static"
+to   = "libc"
+[[edge]]
+from = "ldso"
+to   = "libc"
+[[edge]]
+from = "registry"
+to   = "libc"
+
+[[flow]]
+name = "E1-静态各塞一份"
+path = ["progs", "static", "libc"]
+note = "静态=各塞一份 libc 拷贝；n 程序总空间 n*(own+lib) 线性膨胀 → STATIC_PASS"
+[[flow]]
+name = "E2-动态空GOT"
+path = ["progs", "dyn", "gotE"]
+note = "动态只存 needed=[libc] + 每个外部符号一个【空】GOT 槽（未塞库）→ DYNSYM_PASS"
+[[flow]]
+name = "E3-ld.so解析"
+path = ["gotE", "ldso", "libc", "gotF"]
+note = "按符号名 key 在共享库查 base+偏移，回填进私有 GOT（核心，=find_sym/do_relocs）→ RESOLVE_PASS"
+[[flow]]
+name = "E4-共享省空间"
+path = ["dyn", "libc"]
+note = "n 程序共享一份 libc + 各自小 GOT；lib+n*(own+got) 远小于静态 → SHARE_PASS"
+[[flow]]
+name = "E5-绑定时机"
+path = ["ldso", "gotF", "bind"]
+note = "now 解析全部 / lazy 只解析被调用的；3 符号只调 1 个→now=3 lazy=1 → BIND_PASS"
+[[flow]]
+name = "E6-dlopen插件"
+path = ["registry", "libc"]
+note = "运行时 dlopen 装库、dlsym 查符号；缺库/缺符号→Err（不崩）→ DLOPEN_PASS"
+[[flow]]
+name = "对照-静vs动"
+path = ["static", "dyn"]
+note = "各塞一份(大·自包含·难升级) vs 一份共享+私有GOT(小·换so即打补丁)"
+
+[[iface]]
+name = "lookup(key)"
+bits = "key→addr"
+note = "符号解析：按符号名查共享库 base+偏移（= ld.so find_sym）"
+[[iface]]
+name = "GOT slot"
+bits = "8B/ptr"
+note = "未解析=None/0；解析后=base+偏移；每程序私有（真实里因 ASLR 各异）"
+[[iface]]
+name = "static_sp"
+bits = "n(o+lib)"
+note = "各塞一份：n=100 → 120000B（随 n 线性膨胀）"
+[[iface]]
+name = "dyn_sp"
+bits = "lib+n*o"
+note = "一份共享+各自GOT：n=100 → 23400B（省 96600B ≈ 5.1x）"
+[[iface]]
+name = "needed"
+bits = "DT_NEED"
+note = "动态程序记录依赖哪些 .so；ld.so 据此加载共享库"
+[[iface]]
+name = "bind"
+bits = "now/lazy"
+note = "now=加载即全解析(可 RELRO 只读)；lazy=首调才解析(启动快)"
+[[iface]]
+name = "dlopen"
+bits = "RTLD+key"
+note = "运行时装载+按 key 取符号；缺符号→Err（『没这符号调用就失败』）"
