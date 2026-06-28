@@ -1,0 +1,29 @@
+# Verilator simulation of a SystemVerilog design on StarryOS (#764 "verilog <!-- verilator, iverilog, gnumake -->").
+# vsim = host-built static Verilator sim binary (top.sv + sim_main.cpp; no libc dep), run on starry.
+# DoD = binary runs to completion AND stdout EXACT-matches the host verilator golden (deterministic).
+args = [
+    "-machine", "virt", "-cpu", "la464", "-nographic", "-m", "2048M", "-smp", "1",
+    "-device", "virtio-blk-pci,drive=disk0",
+    "-drive", "id=disk0,if=none,format=raw,file=${workspace}/tmp/axbuild/rootfs/rootfs-loongarch64-verilog.img",
+    "-device", "virtio-net-pci,netdev=net0", "-netdev", "user,id=net0",
+]
+uefi = false
+to_bin = true
+shell_prefix = "root@starry:/root #"
+shell_init_cmd = '''
+PASS=0; TOTAL=0
+acc() { TOTAL=$((TOTAL+1)); if [ "$1" = 1 ]; then PASS=$((PASS+1)); echo "OK   $2"; else echo "FAIL $2"; fi; }
+echo "=== vsim (Verilator sim (comprehensive Verilog/SV)) ==="
+/usr/local/bin/vsim > /tmp/got.txt 2>/tmp/got.err
+# 1) ran to completion (final token present).
+grep -q '^VERILOG_SIM_OK$' /tmp/got.txt && acc 1 "verilog sim ran to completion" || { acc 0 "verilog completion"; echo "  stderr:"; tail -8 /tmp/got.err; echo "  stdout tail:"; tail -8 /tmp/got.txt; }
+# 2) stdout EXACT-matches the host verilator golden (deterministic).
+if cmp -s /tmp/got.txt /root/verilog-golden.txt; then acc 1 "verilog stdout EXACT-match golden"; else acc 0 "verilog stdout MISMATCH"; echo "  diff (golden vs got):"; diff /root/verilog-golden.txt /tmp/got.txt | head -20; fi
+echo "VERILOG_RESULT pass=$PASS total=$TOTAL"
+V=0; [ "$PASS" = "$TOTAL" ] && [ "$TOTAL" = "2" ] && V=1
+printf 'VERILOG_OK=%s\n' "$V"
+echo "VERILOG_DONE"
+'''
+success_regex = ["(?m)^VERILOG_OK=1"]
+fail_regex = ['(?i)\bpanic(?:ked)?\b']
+timeout = 600

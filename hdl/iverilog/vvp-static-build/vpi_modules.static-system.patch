@@ -1,0 +1,24 @@
+--- a/vvp/vpi_modules.cc
++++ b/vvp/vpi_modules.cc
+@@ vpip_load_module(const char*name) @@ after `buf[0] = 0;`
+       ivl_dll_t dll = 0;
+       buf[0] = 0;                     /* terminate the string */
++
++#ifdef VVP_STATIC_SYSTEM
++      /* StarryOS static build: musl static binaries cannot dlopen(). The system
++       * VPI module ($display/$finish/$time/...) is linked into vvp directly, so
++       * resolve "system" to the embedded vlog_startup_routines[] and skip the
++       * dlopen path entirely. Any other (unused) module request is ignored. */
++      {
++	    extern void (*vlog_startup_routines[])(void);
++	    const char*base = strrchr(name, '/');
++	    base = base ? base + 1 : name;
++	    if (strncmp(base, "system", 6) == 0) {
++		  for (unsigned i = 0 ; vlog_startup_routines[i] ; i += 1)
++			(vlog_startup_routines[i])();
++		  return;
++	    }
++	    return;
++      }
++#endif
+ #ifdef __MINGW32__

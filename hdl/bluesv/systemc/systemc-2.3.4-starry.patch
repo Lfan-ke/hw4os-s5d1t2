@@ -1,0 +1,62 @@
+# SystemC 2.3.4 — StarryOS cross-build fixes (Accellera systemc-2.3.4, musl static 4-arch)
+#
+# Two SOURCE patches + four build flags. Verified: x86_64/aarch64/riscv64/loongarch64
+# all build libsystemc.a, link sc_main, and run on StarryOS with byte-identical output.
+#
+# ── SOURCE FIX 1: boost endian detection (riscv64/loongarch64/aarch64 on musl) ──
+#   src/sysc/packages/boost/detail/endian.hpp only sets SC_BOOST_LITTLE_ENDIAN via
+#   <endian.h> when __GLIBC__ is defined; musl is NOT __GLIBC__, so it falls to a
+#   hard-coded arch list that includes x86_64 but NOT aarch64/riscv64/loongarch64 ->
+#   "#error ... needs to be set up for your CPU type." Add a compiler-builtin
+#   __BYTE_ORDER__ fallback before the final #else:
+--- a/src/sysc/packages/boost/detail/endian.hpp
++++ b/src/sysc/packages/boost/detail/endian.hpp
+@@ (just before the final "#else / #error ... set up for your CPU type / #endif")
+ # define SC_BOOST_LITTLE_ENDIAN
+ # define SC_BOOST_BYTE_ORDER 1234
++#elif defined(__BYTE_ORDER__) && (__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__)
++# define SC_BOOST_LITTLE_ENDIAN
++# define SC_BOOST_BYTE_ORDER 1234
++#elif defined(__BYTE_ORDER__) && (__BYTE_ORDER__ == __ORDER_BIG_ENDIAN__)
++# define SC_BOOST_BIG_ENDIAN
++# define SC_BOOST_BYTE_ORDER 4321
+ #else
+ # error The file boost/detail/endian.hpp needs to be set up for your CPU type.
+ #endif
+#
+# ── SOURCE FIX 2: int64 typedef for riscv64/loongarch64 ──
+#   src/sysc/datatypes/int/sc_nbdefs.h typedefs int64 as `long long` ONLY for
+#   __x86_64__/__aarch64__; everything else gets `int64_t` which on riscv64/loongarch64
+#   is `long` -> collides with the explicit `to_value(long)` / sc_bit(long) overloads
+#   ("cannot be overloaded with ... (long int)", sc_bit.h:114). Add riscv/loong to the
+#   `long long` branch (they are LP64, long long == 64-bit, distinct type from long):
+--- a/src/sysc/datatypes/int/sc_nbdefs.h
++++ b/src/sysc/datatypes/int/sc_nbdefs.h
+@@
+ #ifndef _WIN32
+-#   if defined(__x86_64__) || defined(__aarch64__)
++#   if defined(__x86_64__) || defined(__aarch64__) || defined(__riscv) || defined(__loongarch__)
+         typedef long long          int64;
+         typedef unsigned long long uint64;
+ #   else
+         typedef int64_t            int64;
+         typedef uint64_t           uint64;
+ #   endif
+#
+# ── BUILD FLAG 3: -DSC_USE_PTHREADS (CMake -DENABLE_PTHREADS=ON) ──
+#   QuickThreads (src/sysc/packages/qt/md/) has NO asm for x86_64/aarch64/riscv64/
+#   loongarch64 -> use the pthread coroutine backend (sc_cor_pthread.cpp), arch-independent.
+#
+# ── BUILD FLAG 4: -std=c++14 (lib AND consumer) ──
+#   The lib's sc_api_version symbol is std-tagged (sc_api_version_2_3_4_cxx201402L);
+#   a different -std on sc_main -> "undefined reference to sc_api_version_...".
+#
+# ── BUILD FLAG 5: riscv64 + loongarch64 link with -no-pie -fno-pie ──
+#   (read-only segment dynamic relocations); x86_64 + aarch64 use -fPIE.
+#
+# ── BUILD FLAG 6: make -j1 ──
+#   -j4 hits a generated-header race -> spurious mid-build failure; serial is reliable.
+#
+# CMake cross (per arch): toolchain file w/ musl cross g++, BUILD_SHARED_LIBS=OFF,
+#   CMAKE_CXX_FLAGS="-O2 -std=c++14 -DSC_USE_PTHREADS <pie-flags>", -DENABLE_PTHREADS=ON.
+# The two patched headers are shipped alongside: endian.hpp.patched, sc_nbdefs.h.patched.

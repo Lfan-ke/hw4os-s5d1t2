@@ -1,0 +1,142 @@
+================================================================================
+                        致 谢
+                    THANKS / ACKNOWLEDGMENTS
+================================================================================
+
+本项目（类 Alpine OS 在 x86_64 / aarch64 / riscv64 / loongarch64 四架构上的
+OpenJDK 17 + ROS 2 适配）能够开展，离不开下列上游社区、研发团队、企业与志愿
+者长期、无偿、开放地维护着我们所依赖的代码、构建系统与移植工作。
+
+特此致谢。排名不分先后，如有遗漏请见谅。
+
+
+================================================================================
+一、ROS 2 在四架构上的移植 / 适配工作
+================================================================================
+
+  ▸ Open Source Robotics Foundation (OSRF) / Open Robotics
+      ROS 2 项目原始作者与持续维护方，提供 x86_64 与 aarch64 的 Tier 1
+      官方支持及预编译二进制包。
+
+  ▸ AOSC（安同开源社区） / AOSC-Dev
+      LoongArch64 上 ROS 2 Jazzy Jalisco (desktop 变种) 的核心包移植与
+      构建主力，在 aosc-os-abbs 构建系统中完成 colcon (#12771)、
+      flake8 (#12817) 以及 mypy、lttng 等数百个依赖包的批量打包。
+      仓库：https://github.com/AOSC-Dev/aosc-os-abbs
+      项目代号：loongros2
+
+  ▸ PLCT 实验室 / RevyOS 团队（中国科学院软件研究所）
+      RISC-V 上 ROS 2 Humble / Jazzy 的成功移植；将 ROS 2 适配到
+      RevyOS 与中科院 RISC-V 机器人小车上。
+
+  ▸ Microchip（PolarFire SoC 团队）
+      在 PolarFire SoC（RISC-V）嵌入式平台上对 ROS 2 的工程化适配。
+
+  ▸ 一切在 GitHub、Gitee、邮件列表、ROS Discourse 上为 RISC-V /
+      LoongArch ROS 2 移植提交 PR、报告 Bug、撰写文档的个人开发者。
+
+
+================================================================================
+二、OpenJDK 17 上游与各发行版
+================================================================================
+
+  ▸ OpenJDK 社区 / Oracle
+      OpenJDK 17 LTS 上游开发与维护。
+
+  ▸ OpenJDK RISC-V Port 项目（openjdk/riscv-port-jdk17u）
+      将 RISC-V port 反向移植到 JDK 17u，是 RV64GC 上 OpenJDK 17 唯一
+      的官方源码来源。
+      https://github.com/openjdk/riscv-port-jdk17u
+      https://openjdk.org/projects/riscv-port
+
+  ▸ Alpine Linux openjdk17 维护者
+      在 community/openjdk17 仓库中针对 musl libc 做了大量适配补丁，
+      支持 x86_64 / aarch64 / loongarch64 等架构。
+      https://gitlab.alpinelinux.org/alpine/aports/-/tree/master/community/openjdk17
+
+  ▸ Loongson / LoongArch openjdk17 维护者
+      贡献了 openjdk17-loongarch 原生 LA64 ISA 指令集优化变体。
+
+  ▸ Eclipse Adoptium / Eclipse Temurin 项目
+      提供了 RISC-V Linux (glibc) 的 OpenJDK 17 预编译二进制
+      （OpenJDK17U-jdk_riscv64_linux_hotspot_17.0.19_10）。
+      https://adoptium.net/
+
+  ▸ BellSoft / Liberica JDK 团队
+      提供 RISC-V Linux (glibc) 的 Liberica JDK 17 二进制
+      （bellsoft-jdk17.0.19+11-linux-riscv64）。
+      https://bell-sw.com/
+
+  ▸ Debian 项目 / Debian Ports / Debian Java Maintainers
+      在 Debian sid 中维护 RISC-V (glibc) 的 openjdk-17 .deb 包，为
+      本项目提供了第三套备选 binary。
+      https://www.debian.org/ports/riscv64/
+
+  ▸ Ubuntu / Canonical Ports 团队
+      在 Ubuntu Ports 中维护 RISC-V openjdk-17。
+
+  ▸ SAP SapMachine 团队
+      虽未发布 RISC-V 构建，但其 linux-x64-musl 实践证明了 musl
+      OpenJDK 的可行性，是重要参考。
+
+
+================================================================================
+三、musl / Alpine-like 基础设施
+================================================================================
+
+  ▸ musl libc 项目（Rich Felker 等）
+      提供轻量、可靠、严格遵循标准的 C 库实现，是本目标 OS 的基石。
+      https://musl.libc.org/
+
+  ▸ Alpine Linux 项目
+      apk 包格式、APKBUILD、abuild 工具链与海量基础库的维护者，本
+      项目 90% 以上的依赖包来自 Alpine 仓库。
+      https://alpinelinux.org/
+
+  ▸ Alpine Linux CDN 与镜像运营方
+      dl-cdn.alpinelinux.org，以及阿里云、中科大 USTC、清华 TUNA、
+      华为云、上海交大、网易等公益镜像站。
+
+  ▸ gcompat / libucontext / musl-obstack 项目
+      让 glibc 二进制能在 musl 系统上运行的关键兼容层。
+
+  ▸ Wolfi (Chainguard) / Chimera Linux / postmarketOS / Adelie Linux
+      其他 musl-based 发行版社区，他们的 RISC-V / 多架构探索为本
+      项目的搜索调研提供了宝贵参考。
+
+
+================================================================================
+四、四架构本身
+================================================================================
+
+  ▸ Intel / AMD —— x86_64 架构与工具链。
+  ▸ Arm Holdings 与 aarch64 上游生态。
+  ▸ RISC-V International 基金会 / 全球 RISC-V 社区
+      推动开放指令集，让 RV64GC 成为现实。
+  ▸ Loongson（龙芯中科）/ LoongArch 社区
+      LoongArch64 (LA64) 指令集与工具链的设计与开源实现。
+
+  ▸ riscv-collab、riscv-gnu-toolchain、riscv-isa-manual 等上游
+      工具链与文档维护者。
+
+
+================================================================================
+五、其他不可或缺的上游库
+================================================================================
+
+  freetype, fontconfig, libpng, libjpeg-turbo, giflib, lcms2, zlib,
+  brotli, libffi, libcrypto / OpenSSL, libtasn1, p11-kit, ca-certificates,
+  X.Org（libX11/libxcb/libxext/libxrender/libxtst/libxi/libxau/libxdmcp），
+  ALSA project，以及所有被本项目间接依赖到的开源工程。
+
+  你们的代码在每一个被启动的 JVM、每一个被发布的 ROS 2 topic 里默默
+  运行——没有你们就没有这一切。
+
+
+================================================================================
+                              再次感谢！
+                  Without you, none of this would be possible.
+================================================================================
+
+文件生成日期：2026-05-19
+项目目录：$HOME/download/openjdk17-apks/

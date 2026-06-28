@@ -1,0 +1,24 @@
+=== JDK17 (records/sealed/instanceof-pattern/text-block/switch-expr/Stream.toList) ===
+JDK17_OK printed
+=== JDK21 (virtual threads/record patterns/guarded switch/sequenced collections/Math.clamp) ===
+JDK21_OK printed
+=== JDK23 (flexible ctor bodies + Stream Gatherers [preview] + nested record patterns) ===
+JDK23_OK printed
+=== JDK25 (scoped values/module imports/compact headers + StableValue [preview]) ===
+JDK25_OK printed
+JDK25 compact-object-headers run OK
+=== version switch: update-alternatives (JAVA_HOME + symlink swap) ===
+  switch->17 : openjdk version "17.0.18" 2026-01-20
+  switch->21 : openjdk version "21.0.10" 2026-01-20
+  switch->23 : openjdk version "23.0.2" 2025-01-21
+  switch->25 : openjdk version "25" 2025-09-16 LTS
+SWITCH ok=4/4
+=== version switch: sdkman-style candidate 'sdk use' (offline) ===
+  sdk-use 17 : openjdk version "17.0.18" 2026-01-20
+  sdk-use 21 : openjdk version "21.0.10" 2026-01-20
+  sdk-use 23 : openjdk version "23.0.2" 2025-01-21
+  sdk-use 25 : openjdk version "25" 2025-09-16 LTS
+SDK-SWITCH ok=4/4
+AGGREGATE: PASS=7 TOTAL=7
+JDK_MULTI_OK=1
+JDK_MULTI_DONE

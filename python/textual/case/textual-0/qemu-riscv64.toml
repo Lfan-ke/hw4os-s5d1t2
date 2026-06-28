@@ -1,0 +1,39 @@
+# Textual TUI framework headless smoke on StarryOS riscv64. #764 python "textual".
+# Textual + Rich + deps are pure-python (py3-none-any), so per-arch coverage comes from
+# the base musl CPython 3.12 rootfs; prep-textual-rootfs.sh pip-installs them into the
+# guest site-packages + drops textual_smoke.py at /opt. Textual ships a headless test
+# driver (App.run_test() -> Pilot) built for CI: it composes the real widget tree, parses
+# CSS, runs the compositor + reactive engine + async message pump WITHOUT a real TTY.
+# 9 assertions: import textual/rich; Static content round-trip; Button label; CSS applied;
+# >=4 composed widgets; click -> reactive count++; Label reactive update; compositor frame.
+# DoD = all pass (gate ^TEXTUAL_OK=1, printed only by the shell after confirming pass==total).
+args = [
+    "-nographic", "-m", "2048M", "-cpu", "rv64", "-smp", "1",
+    "-device", "virtio-blk-pci,drive=disk0",
+    "-drive", "id=disk0,if=none,format=raw,file=${workspace}/tmp/axbuild/rootfs/rootfs-riscv64-textual.img",
+    "-device", "virtio-net-pci,netdev=net0", "-netdev", "user,id=net0",
+]
+uefi = false
+to_bin = true
+shell_prefix = "root@starry:/root #"
+shell_init_cmd = '''
+export PATH=/usr/bin:/bin:/usr/sbin:/sbin
+export HOME=/root
+printf '/lib\n/usr/lib\n' > /etc/ld-musl-riscv64.path
+export PYTHONDONTWRITEBYTECODE=1
+export PYTHONUNBUFFERED=1
+export PYTHONPATH=/opt/pytui:/usr/lib/python3.12/site-packages
+export TERM=dumb
+echo "=== python3 --version ==="
+python3 --version 2>&1
+python3 /opt/textual_smoke.py > /tmp/textual.out 2>&1
+cat /tmp/textual.out
+RES=$(grep '^TEXTUAL_RESULT' /tmp/textual.out | tail -1)
+P=$(echo "$RES" | sed -E 's/.*pass=([0-9]+).*/\1/'); T=$(echo "$RES" | sed -E 's/.*total=([0-9]+).*/\1/')
+V=0; [ -n "$T" ] && [ "$P" = "$T" ] && [ "$T" -ge 9 ] && V=1
+printf 'TEXTUAL_OK=%s\n' "$V"
+echo "TEXTUAL_DONE"
+'''
+success_regex = ["(?m)^TEXTUAL_OK=1"]
+fail_regex = ['(?i)\bpanic(?:ked)?\b']
+timeout = 1200

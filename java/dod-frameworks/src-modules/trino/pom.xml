@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>org.starry.dod</groupId><artifactId>trino-demo</artifactId><version>1.0.0</version><packaging>jar</packaging>
+  <properties>
+    <maven.compiler.release>17</maven.compiler.release>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <!-- Trino 435 (Dec 2023) is the LAST release that runs on Java 17; 436+ require Java 22+. -->
+    <trino.version>435</trino.version>
+  </properties>
+  <dependencies>
+    <!-- trino-main carries LocalQueryRunner in its TEST jar (the in-process engine harness). -->
+    <dependency><groupId>io.trino</groupId><artifactId>trino-main</artifactId><version>${trino.version}</version></dependency>
+    <dependency><groupId>io.trino</groupId><artifactId>trino-main</artifactId><version>${trino.version}</version><type>test-jar</type></dependency>
+    <!-- TPCH connector: pure-compute, generates data on the fly (no storage backend needed). -->
+    <dependency><groupId>io.trino</groupId><artifactId>trino-tpch</artifactId><version>${trino.version}</version></dependency>
+    <dependency><groupId>io.trino</groupId><artifactId>trino-testing</artifactId><version>${trino.version}</version></dependency>
+    <!-- Trino SPI / type system pulled transitively; declared for source compile clarity. -->
+    <dependency><groupId>io.trino</groupId><artifactId>trino-spi</artifactId><version>${trino.version}</version></dependency>
+  </dependencies>
+  <build>
+    <finalName>trino-demo</finalName>
+    <sourceDirectory>${project.basedir}</sourceDirectory>
+    <plugins>
+      <plugin><groupId>org.apache.maven.plugins</groupId><artifactId>maven-compiler-plugin</artifactId><version>3.11.0</version><configuration><release>17</release></configuration></plugin>
+      <!-- Collect the full runtime classpath into target/trino-libs/ for staging into the rootfs.
+           A single shaded uber-jar is avoided: Trino has many service-loader META-INF/services
+           collisions and signed jars that break shading; a flat lib dir + `-cp 'trino-libs/*'`
+           is the supported pattern. The demo class compiles into target/classes; copy both. -->
+      <plugin><groupId>org.apache.maven.plugins</groupId><artifactId>maven-dependency-plugin</artifactId><version>3.6.1</version>
+        <executions><execution><id>copy-deps</id><phase>package</phase><goals><goal>copy-dependencies</goal></goals>
+          <configuration><outputDirectory>${project.build.directory}/trino-libs</outputDirectory><includeScope>test</includeScope></configuration>
+        </execution></executions>
+      </plugin>
+    </plugins>
+  </build>
+</project>

@@ -1,0 +1,9 @@
+SC count=0
+SC count=1
+SC count=2
+SC count=3
+SC count=4
+SC count=5
+SC count=6
+SC count=7
+SYSTEMC_OK

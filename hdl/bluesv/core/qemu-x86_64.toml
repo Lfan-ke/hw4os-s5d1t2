@@ -1,0 +1,31 @@
+# Bluespec (bsc) -> Verilog -> static vvp on StarryOS (#764 "bluesv <!-- bluespec
+# systemverilog, system c -->"). Tb.bsv compiled by bsc to Verilog, linked to
+# bluesv.vvp; vvp (VCD-enabled, system VPI embedded) runs it: completes, matches
+# the host golden, AND emits a VCD waveform (iverilog replaces bluesim as sim).
+args = [
+    "-nographic", "-m", "2048M", "-smp", "1",
+    "-device", "virtio-blk-pci,drive=disk0",
+    "-drive", "id=disk0,if=none,format=raw,file=${workspace}/tmp/axbuild/rootfs/rootfs-x86_64-bluesv.img",
+    "-device", "virtio-net-pci,netdev=net0", "-netdev", "user,id=net0",
+]
+uefi = false
+to_bin = false
+shell_prefix = "root@starry:/root #"
+shell_init_cmd = '''
+PASS=0; TOTAL=0
+acc() { TOTAL=$((TOTAL+1)); if [ "$1" = 1 ]; then PASS=$((PASS+1)); echo "OK   $2"; else echo "FAIL $2"; fi; }
+echo "=== Bluespec (bsc -verilog) sim via static vvp + VCD waveform ==="
+cd /tmp
+/usr/local/bin/vvp /root/bluesv.vvp +bscvcd > /tmp/raw.txt 2>/tmp/got.err
+grep -E '^BLUESV_COUNT=|^BLUESV_SIM_OK$' /tmp/raw.txt > /tmp/got.txt
+grep -q '^BLUESV_SIM_OK$' /tmp/got.txt && acc 1 "vvp ran bsc-generated Verilog to completion" || { acc 0 "vvp completion"; echo "  stderr:"; tail -6 /tmp/got.err; echo "  raw:"; tail -6 /tmp/raw.txt; }
+if cmp -s /tmp/got.txt /root/bluesv-golden.txt; then acc 1 "stdout EXACT-match golden"; else acc 0 "stdout MISMATCH"; diff /root/bluesv-golden.txt /tmp/got.txt | head; fi
+if [ -s /tmp/dump.vcd ] && grep -q '[$]var' /tmp/dump.vcd; then acc 1 "VCD waveform generated ($(wc -l </tmp/dump.vcd) lines)"; else acc 0 "VCD waveform"; fi
+echo "BLUESV_RESULT pass=$PASS total=$TOTAL"
+V=0; [ "$PASS" = "$TOTAL" ] && [ "$TOTAL" = "3" ] && V=1
+printf 'BLUESV_OK=%s\n' "$V"
+echo "BLUESV_DONE"
+'''
+success_regex = ["(?m)^BLUESV_OK=1"]
+fail_regex = ['(?i)\bpanic(?:ked)?\b']
+timeout = 600

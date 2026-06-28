@@ -1,0 +1,31 @@
+# -m 2048M (was 4096M): match every sibling java case (openjdk17/quarkus/ktor/wildfly/sdkman
+# all use 2048M and boot fine). A single -Xmx512m JVM never needs 4G. On x86 q35, >~3G guest
+# RAM pushes the virtio 64-bit PCI BARs into the high MMIO window (~768G phys); the x86 boot
+# PML4 only linear-maps the low range, so init_drivers' device_status write to that BAR faults
+# (#PF @ VA:0xffff80c0_00000014 WRITE, ~5.6s boot). Underlying starry limitation = foundational
+# iomap-PCI-BAR (on-demand BAR mapping), tracked separately; here we use the sane sibling config.
+args = [
+    "-nographic", "-m", "2048M", "-smp", "1",
+    "-device", "virtio-blk-pci,drive=disk0",
+    "-drive", "id=disk0,if=none,format=raw,file=${workspace}/tmp/axbuild/rootfs/rootfs-x86_64-jdk-multi.img",
+    "-device", "virtio-net-pci,netdev=net0", "-netdev", "user,id=net0",
+]
+uefi = false
+to_bin = false
+shell_prefix = "root@starry:/root #"
+shell_init_cmd = '''
+ARCH=x86_64
+LDP=/etc/ld-musl-$ARCH.path
+setp() { printf '/lib\n/usr/lib\n%s/lib\n%s/lib/server\n' "$1" "$1" > "$LDP"; }
+setp /opt/jdk17
+export JAVA_TOOL_OPTIONS="-Xint"
+echo "=== Kotlin language carpet (kotlinc 2.0.21 -> host jar, run on starry JVM) ==="
+/opt/jdk17/bin/java -Xint -Xmx512m -Xms64m -jar /root/KotlinCarpet.jar >/tmp/k.out 2>&1
+grep -aE 'KOTLIN_CARPET|KOTLIN_OK|KOTLIN_FAIL' /tmp/k.out | tail -3
+if grep -qa '^KOTLIN_OK$' /tmp/k.out; then V=1; else V=0; echo "FAIL tail:"; tail -15 /tmp/k.out; fi
+printf 'KOTLIN_GATE=%s\n' "$V"
+echo "KOTLIN_DONE"
+'''
+success_regex = ["(?m)^KOTLIN_GATE=1"]
+fail_regex = ['(?i)\bpanic(?:ked)?\b']
+timeout = 4000

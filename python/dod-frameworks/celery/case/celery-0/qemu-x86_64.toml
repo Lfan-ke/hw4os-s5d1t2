@@ -1,0 +1,62 @@
+args = [
+    "-nographic", "-m", "2048M", "-smp", "1",
+    "-device", "virtio-blk-pci,drive=disk0",
+    "-drive", "id=disk0,if=none,format=raw,file=${workspace}/tmp/axbuild/rootfs/rootfs-x86_64-celery.img",
+    "-device", "virtio-net-pci,netdev=net0", "-netdev", "user,id=net0",
+]
+uefi = false
+to_bin = false
+shell_prefix = "root@starry:/root #"
+shell_init_cmd = '''
+# === Celery 5.5.3 task queue + Flower 2.0.1 monitor on StarryOS x86_64 ===
+# CPython 3.12 (Alpine musl) runs a REAL celery task round-trip in-process:
+# memory:// broker + cache+memory:// backend with task.apply() (eager path) so
+# there is ZERO external server and ZERO network -- the deterministic headless
+# DoD. This exercises celery's task registration, kombu serialization, the
+# result backend, and the worker execution code path. Flower (celery's tornado
+# web monitor) is validated by import + version (it needs a live broker to serve
+# its UI, so import+version is the headless contract). Not exit-0: it computes
+# add(2,3)=5 and mul(4,5)=20 through celery's machinery and compares the results.
+# celery/flower/kombu/billiard/amqp/tornado closure injected by
+# prep-celery-rootfs.sh (pure-python wheels, debugfs no-mount).
+# Asset provenance: ~/rcore/download/python-web/SOURCES.md.
+export PATH=/usr/bin:/bin:/usr/sbin:/sbin
+export HOME=/root
+printf '/lib\n/usr/lib\n' > /etc/ld-musl-x86_64.path
+export PYTHONDONTWRITEBYTECODE=1
+export PYTHONUNBUFFERED=1
+export PYTHONPATH=/usr/lib/python3.12/site-packages
+echo "=== python3 --version ==="
+python3 --version 2>&1
+echo "=== celery import ==="
+python3 -c "import celery, flower, kombu, tornado; print('celery', celery.__version__)" 2>&1
+cd /tmp
+cat > /tmp/celery_app.py << 'PYEOF'
+from celery import Celery
+
+app = Celery('t', broker='memory://', backend='cache+memory://')
+
+
+@app.task
+def add(x, y):
+    return x + y
+
+
+@app.task
+def mul(x, y):
+    return x * y
+PYEOF
+task_ok=0
+if cd /tmp && python3 -c "from celery_app import add, mul; r1=add.apply(args=(2,3)).get(timeout=10); r2=mul.apply(args=(4,5)).get(timeout=10); print('R', r1, r2); import sys; sys.exit(0 if (r1==5 and r2==20) else 1)"; then task_ok=1; fi
+echo "task_ok=$task_ok"
+flower_ok=0
+if python3 -c "import flower; print('flower', getattr(flower,'__version__','?'))"; then flower_ok=1; fi
+python3 -m flower --version 2>&1 | head -1 || celery --version 2>&1 | head -1 || true
+echo "flower_ok=$flower_ok"
+if [ "$task_ok" = 1 ] && [ "$flower_ok" = 1 ]; then V=1; else V=0; fi
+printf 'CELERY_OK=%s\n' "$V"
+echo CELERY_DONE
+'''
+success_regex = ["(?m)^CELERY_OK=1"]
+fail_regex = ['(?i)\bpanic(?:ked)?\b']
+timeout = 1800

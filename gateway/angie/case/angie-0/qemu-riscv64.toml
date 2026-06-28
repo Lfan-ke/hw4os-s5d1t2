@@ -1,0 +1,86 @@
+args = [
+    "-nographic", "-m", "2048M", "-cpu", "rv64", "-smp", "1",
+    "-device", "virtio-blk-pci,drive=disk0",
+    "-drive", "id=disk0,if=none,format=raw,file=${workspace}/tmp/axbuild/rootfs/rootfs-riscv64-angie.img",
+    "-device", "virtio-net-pci,netdev=net0", "-netdev", "user,id=net0",
+]
+uefi = false
+to_bin = true
+shell_prefix = "root@starry:/root #"
+shell_init_cmd = '''
+# === angie web server (gateway category, #764; nginx-compatible fork) on StarryOS riscv64 ===
+# Launch the musl-native angie 1.11.5 in the FOREGROUND/SINGLE-process mode (daemon off;
+# master_process off; error_log stderr) bound to 127.0.0.1:8080, then issue a real loopback
+# HTTP request with busybox wget and assert the body is exactly "ANGIE_OK_BODY". angie +
+# pcre2/zlib/libssl3/libcrypto3 injected by prep-angie-rootfs.sh; the minimal
+# /etc/angie/angie.conf returns the fixed body via `return 200`. Loopback works in-guest
+# without -netdev; the net device is kept anyway. -smp 1 (single CPU) per the case spec.
+# NOTE: angie ships NO official Alpine apk for riscv64 (APKINDEX 404); a riscv64 rootfs
+# requires a source-cross-build of angie (see README + SOURCES.md). This toml is provided
+# for parity so the case can run once a riscv64 binary exists.
+# See <download-cache>/gateway-bins/SOURCES.md.
+printf '/lib\n/usr/lib\n' > /etc/ld-musl-riscv64.path
+export PATH=/usr/bin:/bin:/sbin:/usr/sbin
+export HOME=/root
+# Runtime dirs angie needs (pid + temp paths from angie.conf).
+mkdir -p /run /var/log/angie /var/lib/angie/tmp
+ANGIE=/usr/sbin/angie
+echo "=== angie -v ==="
+$ANGIE -v 2>&1
+# NOTE (anti-false-positive): the success token is emitted ONLY by the final printf below.
+# Internal pass/fail state lives in VER_OK / SERVE_OK so that no echo, comment, or
+# assignment can ever emit a 80-col-wrapped success match by accident.
+
+# --- version gate: the running binary MUST be Angie/1.11.5 (wrong version = FAIL) ---
+# angie -v prints to stderr in the form "Angie version: Angie/1.11.5".
+VER_OK=0
+$ANGIE -v 2>&1 | grep -q 'Angie/1.11.5' && VER_OK=1 || echo "  VERSION MISMATCH (expected Angie/1.11.5)"
+
+# --- config syntax test (also surfaces the first missing-syscall error early) ---
+$ANGIE -c /etc/angie/angie.conf -t > /tmp/angie.test 2>&1
+cat /tmp/angie.test
+
+# --- launch angie in the background; stderr -> /tmp/angie.err ---
+$ANGIE -c /etc/angie/angie.conf > /tmp/angie.err 2>&1 &
+APID=$!
+echo "  angie launched pid=$APID"
+
+# --- wait for it to bind 127.0.0.1:8080 (retry the request) ---
+BODY=""
+up=0
+i=0
+while [ "$i" -lt 40 ]; do
+    BODY=$(wget -qO- http://127.0.0.1:8080/ 2>/dev/null)
+    if [ -n "$BODY" ]; then up=1; break; fi
+    # bail out early if angie already died
+    kill -0 "$APID" 2>/dev/null || { echo "  angie exited before binding"; break; }
+    i=$((i+1))
+    sleep 1
+done
+
+SERVE_OK=0
+if [ "$up" = 1 ]; then
+    echo "  wget body=[$BODY]"
+    [ "$BODY" = "ANGIE_OK_BODY" ] && SERVE_OK=1 || echo "  body MISMATCH (expected ANGIE_OK_BODY)"
+else
+    echo "  angie did not serve on 127.0.0.1:8080"
+fi
+
+# --- on failure, dump angie stderr so the first missing syscall is captured ---
+if [ "$SERVE_OK" != 1 ]; then
+    echo "=== angie.err (look for socket/bind/epoll/eventfd/sendfile errors) ==="
+    cat /tmp/angie.err 2>/dev/null
+fi
+
+# --- stop angie ---
+kill "$APID" 2>/dev/null
+kill -9 "$APID" 2>/dev/null
+
+echo "RESULT: angie_version=$VER_OK angie_serve=$SERVE_OK"
+# only pass when BOTH the version assertion and the serve probe succeed
+if [ "$VER_OK" = 1 ] && [ "$SERVE_OK" = 1 ]; then V=1; else V=0; fi; printf 'ANGIE_OK=%s\n' "$V"
+echo "ANGIE_DONE"
+'''
+success_regex = ["(?m)^ANGIE_OK=1"]
+fail_regex = ['(?i)\bpanic(?:ked)?\b']
+timeout = 1800

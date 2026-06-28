@@ -1,0 +1,192 @@
+args = [
+    "-machine", "virt", "-cpu", "la464", "-nographic", "-m", "4096M", "-smp", "1",
+    "-device", "virtio-blk-pci,drive=disk0",
+    "-drive", "id=disk0,if=none,format=raw,file=${workspace}/tmp/axbuild/rootfs/rootfs-loongarch64-kconfiglib.img",
+    "-device", "virtio-net-pci,netdev=net0", "-netdev", "user,id=net0",
+]
+uefi = false
+to_bin = true
+shell_prefix = "root@starry:/root #"
+shell_init_cmd = '''
+# === kconfiglib CORRECTNESS on StarryOS loongarch64 ===
+# kconfiglib is a single-file, fully-headless PURE-PYTHON Kconfig parser
+# (kconfiglib.py v14.1.0; no curses/tk at import). Source:
+# opensbi/scripts/Kconfiglib/kconfiglib.py, injected into rootfs-<arch>-python.img
+# by prep-kconfiglib-rootfs.sh (debugfs -w, no mount, WSL2-safe) at
+# /usr/lib/python3.12/site-packages/kconfiglib.py.
+# Methodology: write a synthetic /tmp/Kconfig exercising every symbol type
+# (bool/tristate/int/hex/string) + depends-on + select + imply + a choice block +
+# range + default (plus a MODULES symbol so tristate stays tristate); then an
+# assert-accumulator script asserts EXACT .type / .str_value / .tri_value,
+# depends-on propagation, select (strong) + imply (weak) reverse-dependency
+# propagation, choice exclusivity, range default-clamping + verbatim user values,
+# and a write_config/load_config roundtrip equality. EXACT invariants, NOT exit 0.
+# Prints ^KCONFIGLIB_OK=1 ONLY if every check passes (mirrors python-0's T-gate).
+printf '/lib\n/usr/lib\n' > /etc/ld-musl-loongarch64.path
+export PATH=/usr/bin:/bin:/sbin:/usr/sbin
+export HOME=/root
+export PYTHONDONTWRITEBYTECODE=1
+PY=/usr/bin/python3
+echo "=== python3 --version ==="
+$PY --version 2>&1
+
+cat > /tmp/Kconfig << 'KCEOF'
+# Synthetic Kconfig for the kconfiglib-0 invariant battery.
+# A MODULES symbol (option modules) is required for tristate symbols to remain
+# tristate; without it kconfiglib downgrades every tristate to bool.
+config MODULES
+	bool "Build modular features"
+	option modules
+	default y
+
+config FEAT_BOOL
+	bool "A boolean feature"
+	default y
+
+config FEAT_TRI
+	tristate "A tristate feature"
+	default m
+
+config FEAT_DEP
+	bool "Depends on FEAT_BOOL"
+	depends on FEAT_BOOL
+	default y
+
+config FEAT_SELECTED
+	bool "Reverse-dep target (strong)"
+
+config FEAT_SELECTOR
+	bool "Selects FEAT_SELECTED"
+	select FEAT_SELECTED
+	default y
+
+config FEAT_IMPLIED
+	bool "Implied target (weak)"
+
+config FEAT_IMPLIER
+	bool "Implies FEAT_IMPLIED"
+	imply FEAT_IMPLIED
+	default y
+
+config FEAT_INT
+	int "An integer"
+	range 1 100
+	default 42
+
+config FEAT_INT_CLAMPED
+	int "Default below range -> clamped to range minimum"
+	range 10 20
+	default 5
+
+config FEAT_HEX
+	hex "A hex value"
+	range 0x0 0xff
+	default 0x2a
+
+config FEAT_STR
+	string "A string"
+	default "hello"
+
+choice
+	prompt "Pick one backend"
+	default BACKEND_B
+
+config BACKEND_A
+	bool "Backend A"
+
+config BACKEND_B
+	bool "Backend B"
+
+config BACKEND_C
+	bool "Backend C"
+
+endchoice
+KCEOF
+
+cat > /tmp/t_kconfiglib.py << 'PYEOF'
+import os
+from kconfiglib import Kconfig, BOOL, TRISTATE, STRING, INT, HEX, expr_value
+
+acc = []
+def chk(n, c): acc.append((n, bool(c)))
+
+k = Kconfig("/tmp/Kconfig", warn=False)
+S = k.syms
+chk("T1_load", k is not None)
+
+# Symbol .type matches declared type. A MODULES symbol (option modules) is present,
+# so FEAT_TRI stays a true tristate (assignable n/m/y).
+chk("T2_bool_type",     S["FEAT_BOOL"].type == BOOL)
+chk("T3_tristate_type", S["FEAT_TRI"].type == TRISTATE)
+chk("T4_int_type",      S["FEAT_INT"].type == INT)
+chk("T5_hex_type",      S["FEAT_HEX"].type == HEX)
+chk("T6_string_type",   S["FEAT_STR"].type == STRING)
+
+# Drive symbols explicitly; assert EXACT .str_value / .tri_value
+S["FEAT_BOOL"].set_value(2)
+chk("T7_bool_y",  S["FEAT_BOOL"].tri_value == 2 and S["FEAT_BOOL"].str_value == "y")
+S["FEAT_TRI"].set_value(1)
+chk("T8_tri_m",   S["FEAT_TRI"].tri_value == 1 and S["FEAT_TRI"].str_value == "m")
+S["FEAT_INT"].set_value("42")
+chk("T9_int",     S["FEAT_INT"].str_value == "42")
+S["FEAT_HEX"].set_value("0x2a")
+chk("T10_hex",    S["FEAT_HEX"].str_value == "0x2a")
+S["FEAT_STR"].set_value("hello")
+chk("T11_str",    S["FEAT_STR"].str_value == "hello")
+
+# imply: weak reverse-dependency; implier=y raises implied to y
+S["FEAT_IMPLIER"].set_value(2)
+chk("T_imply",     S["FEAT_IMPLIED"].tri_value == 2)
+chk("T_imply_wrd", expr_value(S["FEAT_IMPLIED"].weak_rev_dep) == 2)
+
+# select: strong reverse-dependency; selector=y forces selected to y
+S["FEAT_SELECTOR"].set_value(2)
+chk("T_select",    S["FEAT_SELECTED"].tri_value == 2)
+chk("T_select_rd", expr_value(S["FEAT_SELECTED"].rev_dep) == 2)
+
+# depends on: FEAT_DEP y while FEAT_BOOL=y; drops to n when FEAT_BOOL=n
+S["FEAT_DEP"].set_value(2)
+chk("T_dep_sat",   S["FEAT_DEP"].tri_value == 2)
+S["FEAT_BOOL"].set_value(0)
+chk("T_dep_unsat", S["FEAT_DEP"].tri_value == 0 and S["FEAT_DEP"].str_value == "n")
+S["FEAT_BOOL"].set_value(2)
+
+# choice: exactly one member selected (look up the choice by member, order-independent)
+choice = next(c for c in k.choices if S["BACKEND_A"] in c.syms)
+S["BACKEND_B"].set_value(2)
+chk("T_choice_sel",  choice.selection is S["BACKEND_B"])
+chk("T_choice_excl", S["BACKEND_A"].tri_value == 0 and S["BACKEND_C"].tri_value == 0)
+
+# range on a DEFAULT: a default below the range is clamped up to the range minimum.
+# FEAT_INT_CLAMPED has default 5 with range 10 20 -> resolves to "10".
+chk("T_range_default_clamp", S["FEAT_INT_CLAMPED"].str_value == "10")
+# A user value (set_value) is accepted verbatim regardless of range (range only
+# constrains defaults / menuconfig). 999 is outside [1,100] yet accepted.
+S["FEAT_INT"].set_value("50")
+chk("T_range_user_in",  S["FEAT_INT"].str_value == "50")
+S["FEAT_INT"].set_value("999")
+chk("T_range_user_out", S["FEAT_INT"].str_value == "999")
+
+# write_config / load_config roundtrip equality
+S["FEAT_STR"].set_value("changed")
+k.write_config("/tmp/test.config")
+chk("T_write", os.path.exists("/tmp/test.config"))
+k2 = Kconfig("/tmp/Kconfig", warn=False)
+k2.load_config("/tmp/test.config")
+chk("T_reload_str", k2.syms["FEAT_STR"].str_value == "changed")
+chk("T_reload_int", k2.syms["FEAT_INT"].str_value == "999")
+chk("T_reload_sel", k2.syms["FEAT_SELECTED"].tri_value == 2)
+
+ok = all(v for _, v in acc)
+for n, v in acc:
+    print(("PASS " if v else "FAIL ") + n)
+print("KCONFIGLIB_OK=1" if ok else "KCONFIGLIB_BAD")
+PYEOF
+$PY /tmp/t_kconfiglib.py > /tmp/kc.out 2>&1
+cat /tmp/kc.out
+grep -q "^KCONFIGLIB_OK=1" /tmp/kc.out || { echo "kconfiglib FAIL"; tail -10 /tmp/kc.out; }
+echo "KCONFIGLIB_DONE"
+'''
+success_regex = ["(?m)^KCONFIGLIB_OK=1"]
+fail_regex = ['(?i)\bpanic(?:ked)?\b', '(?m)^FAIL ', '(?m)^KCONFIGLIB_BAD', '(?m)Traceback']
+timeout = 900

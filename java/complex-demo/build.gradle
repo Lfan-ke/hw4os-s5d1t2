@@ -1,0 +1,24 @@
+plugins {
+    id 'java'
+    id 'application'
+}
+
+group = 'demo'
+version = '1.0.0'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)
+    }
+}
+
+application {
+    mainClass = 'demo.App'
+}
+
+jar {
+    archiveBaseName = 'complex-demo'
+    manifest {
+        attributes 'Main-Class': 'demo.App'
+    }
+}

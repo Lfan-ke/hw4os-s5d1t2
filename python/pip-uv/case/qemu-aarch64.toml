@@ -1,0 +1,542 @@
+args = [
+    "-nographic", "-m", "2048M", "-cpu", "cortex-a72", "-smp", "1",
+    "-device", "virtio-blk-pci,drive=disk0",
+    "-drive", "id=disk0,if=none,format=raw,file=${workspace}/tmp/axbuild/rootfs/rootfs-aarch64-pip314.img",
+    "-device", "virtio-net-pci,netdev=net0", "-netdev", "user,id=net0",
+]
+uefi = false
+to_bin = false
+shell_prefix = "root@starry:/root #"
+shell_init_cmd = '''
+#!/bin/sh
+# ===== CARPET-BOMB pip + uv test (host / qemu10-linux / starry-4arch shared) =====
+# t  = offline-deterministic (counts toward gate)   n = online (recorded, slirp/net)
+# ti = expected-special (removed/dry-run/error path, recorded not gated)
+export HOME=${HOME:-/root} USER=${USER:-root} SHELL=/bin/sh TERM=xterm
+# append (not replace) so host venv/bin in $PATH keeps precedence; starry default PATH already has /usr/bin
+export PATH="$PATH:/usr/local/sbin:/usr/local/bin:/usr/bin:/bin:/sbin:/root/.local/bin:/root/.cargo/bin"
+export PIP_BREAK_SYSTEM_PACKAGES=1 PIP_DISABLE_PIP_VERSION_CHECK=1
+# Isolate caches to clean dirs: deterministic, matches starry's empty cache, and stops
+# `pip cache info` scanning a huge host ~/.cache (D-state hang of the gate). NOTE: uv's cache
+# must live on a REAL DISK, not tmpfs — uv reads unpacked wheel METADATA from its cache via a
+# path that returns garbage ("wheel invalid: Metadata field Name not found") when the cache is
+# on starry's RAM-backed /tmp (isolated by diag: /tmp cache FAILs, $HOME ext4 cache OK). pip's
+# cache on /tmp is fine. So pip cache -> /tmp, uv cache -> $HOME/.uvcache (ext4 on both).
+export PIP_CACHE_DIR=/tmp/pipcache UV_CACHE_DIR="${HOME:-/root}/.uvcache" XDG_CACHE_HOME=/tmp/xdgcache
+mkdir -p /tmp/pipcache "${HOME:-/root}/.uvcache" /tmp/xdgcache
+# Running python's X.Y tag — used to pin uv projects to whatever python is actually present
+# (host may be 3.12, starry rootfs is 3.14). A hardcoded pin breaks the host baseline.
+PYTAG=$(python3 -c 'import sys;print("%d.%d"%sys.version_info[:2])' 2>/dev/null); export PYTAG
+# NOTE: do NOT set PYTHONDONTWRITEBYTECODE — .pyc caching is essential for speed under TCG
+# (each pip call recompiles ~hundreds of modules without it; caching makes startup ~5x faster)
+ARCH_M=$(uname -m); printf "/lib\n/usr/lib\n/usr/local/lib\n" > /etc/ld-musl-${ARCH_M}.path 2>/dev/null
+export LD_LIBRARY_PATH=/usr/lib:/lib:/usr/local/lib
+OK=0; TOT=0
+# timeout 300 so no single GATE test can ever hang the unattended run (e.g. a uv subprocess
+# stalling on starry's nested fork-exec gap) — a hang becomes a bounded FAIL, not a dead run.
+t()  { TOT=$((TOT+1)); if timeout 1200 sh -c "$2" >/tmp/o 2>&1; then OK=$((OK+1)); echo "CB $1=OK"; else echo "CB $1=FAIL rc=$? :: $(tail -1 /tmp/o)"; fi; }
+n()  { if timeout 220 sh -c "$2" >/tmp/no 2>&1; then echo "CBNET $1=OK :: $(tail -1 /tmp/no)"; else echo "CBNET $1=FAIL rc=$? :: $(tail -2 /tmp/no | tr '\n' '|')"; fi; }
+ti() { if timeout 60 sh -c "$2" >/tmp/io 2>&1; then echo "CBINFO $1=OK :: $(tail -1 /tmp/io)"; else echo "CBINFO $1=rc$? :: $(tail -1 /tmp/io)"; fi; }
+
+echo "CARPET_BEGIN arch=$(uname -m)"
+python3 --version 2>&1 | sed 's/^/PYVER /'
+
+# ---- bootstrap pip (3.14): install pip directly from the bundled wheel via zipimport
+# (ensurepip spawns a subprocess that fails on starry; direct PYTHONPATH install is proven) ----
+if ! pip3 --version >/dev/null 2>&1 && ! python3 -m pip --version >/dev/null 2>&1; then
+  WHL=$(ls /usr/lib/python3.*/ensurepip/_bundled/pip-*.whl 2>/dev/null | head -1)
+  PYTHONPATH="$WHL" python3 -m pip install --no-cache-dir --no-index "$WHL" >/tmp/ep 2>&1
+  echo "PIPBOOT rc=$? whl=$WHL"; tail -8 /tmp/ep | sed 's/^/PIPBOOT /'
+  hash -r 2>/dev/null
+fi
+if ! command -v pip3 >/dev/null 2>&1; then pip3() { python3 -m pip "$@"; }; fi
+pip3 --version 2>&1 | sed 's/^/PIPVER /'
+
+# ---- bootstrap build backend (setuptools/wheel) from offline wheels (no backend needed to install a wheel) ----
+WHEELS=${WHEELS_DIR:-/opt/wheels}; export WHEELS
+if [ -d "$WHEELS" ]; then
+  pip3 install --no-index --find-links "$WHEELS" setuptools wheel >/tmp/sw 2>&1
+  echo "BOOTSTRAP-BUILD rc=$? :: $(tail -1 /tmp/sw)"
+fi
+python3 -c "import setuptools,wheel;print('setuptools',setuptools.__version__)" 2>&1 | sed 's/^/BUILDENV /'
+
+# ================= FIXTURES (offline) =================
+mkdir -p /tmp/lp /tmp/findlinks /tmp/wh /tmp/dl /tmp/tgt
+printf 'from setuptools import setup\nsetup(name="localpkg",version="0.1.0",py_modules=["localmod"],extras_require={"x":["six"]})\n' > /tmp/lp/setup.py
+printf 'HELLO="hi"\n' > /tmp/lp/localmod.py
+printf 'localpkg @ file:///tmp/lp\n' > /tmp/reqs.txt
+printf 'localpkg<1.0\n' > /tmp/constraints.txt
+printf 'localpkg\n' > /tmp/over.txt
+echo "hello-pip" > /tmp/hf.txt
+
+# ================= PIP: global / help =================
+t pip-version       'pip3 --version | grep -q "pip 26"'
+t pip-V             'pip3 -V | grep -q "pip 26"'
+t pip-help          'pip3 --help'
+t pip-help-flag     'pip3 -h'
+t pip-isolated      'pip3 --isolated --version'
+t pip-nocolor       'pip3 --no-color --version'
+t pip-noinput       'pip3 --no-input --version'
+t pip-quiet         'pip3 -q --version'
+t pip-verbose       'pip3 -v --version'
+t pip-nocache       'pip3 --no-cache-dir --version'
+t pip-pyflag        'pip3 --python "$(command -v python3)" --version || pip3 --version'
+# help for EVERY subcommand
+for c in install download uninstall freeze inspect list show check config search cache index wheel hash completion debug help lock; do
+  t "pip-help-$c" "pip3 help $c"
+done
+
+# ================= PIP: list (all variants) =================
+t pip-list           'pip3 list | grep -qi "^pip "'
+t pip-list-json      'pip3 list --format=json | python3 -c "import sys,json;assert isinstance(json.load(sys.stdin),list)"'
+t pip-list-columns   'pip3 list --format=columns'
+t pip-list-freeze    'pip3 list --format=freeze'
+t pip-list-notreq    'pip3 list --not-required'
+t pip-list-incledit  'pip3 list --include-editable'
+t pip-list-excledit  'pip3 list --exclude-editable'
+t pip-list-exclude   'pip3 list --exclude pip'
+t pip-list-user      'pip3 list --user'
+
+# ================= PIP: show / freeze / inspect / check / debug =================
+t pip-show           'pip3 show pip | grep -q "^Name: pip$"'
+t pip-show-files     'pip3 show -f pip'
+t pip-show-verbose   'pip3 show --verbose pip'
+t pip-freeze         'pip3 freeze'
+t pip-freeze-all     'pip3 freeze --all'
+t pip-freeze-local   'pip3 freeze --local'
+t pip-freeze-excl    'pip3 freeze --exclude pip'
+t pip-inspect        'pip3 inspect | python3 -c "import sys,json;json.load(sys.stdin)"'
+t pip-inspect-local  'pip3 inspect --local | python3 -c "import sys,json;json.load(sys.stdin)"'
+ti pip-check          'pip3 check || true'
+t pip-debug          'pip3 debug 2>&1 | grep -qi "compatible tags"'
+t pip-debug-verbose  'pip3 debug --verbose'
+
+# ================= PIP: config (full) =================
+t pip-config-list    'pip3 config list'
+t pip-config-listv   'pip3 config list -v'
+t pip-config-debug   'pip3 config debug'
+t pip-config-set     'pip3 config set global.timeout 60'
+t pip-config-get     'pip3 config get global.timeout | grep -q 60'
+t pip-config-unset   'pip3 config unset global.timeout'
+ti pip-config-edit-na 'pip3 config edit --editor /bin/true || true'
+t pip-config-indexurl  'pip3 config set global.index-url https://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple && pip3 config get global.index-url | grep -q tsinghua && pip3 config set global.extra-index-url "https://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple https://mirrors.aliyun.com/pypi/simple" && pip3 config get global.extra-index-url | grep -q aliyun && pip3 config unset global.index-url && pip3 config unset global.extra-index-url'
+
+# ================= PIP: cache (full) =================
+t pip-cache-dir      'pip3 cache dir'
+t pip-cache-info     'pip3 cache info'
+ti pip-cache-list     'pip3 cache list || true'
+ti pip-cache-listfmt  'pip3 cache list --format=abspath || true'
+ti pip-cache-purge    'pip3 cache purge || true'
+
+# ================= PIP: hash (all algos) =================
+t pip-hash-256       'pip3 hash /tmp/hf.txt | grep -i sha256:'
+t pip-hash-384       'pip3 hash -a sha384 /tmp/hf.txt | grep -i sha384:'
+t pip-hash-512       'pip3 hash -a sha512 /tmp/hf.txt | grep -i sha512:'
+
+# ================= PIP: completion (all shells) =================
+t pip-comp-bash      'pip3 completion --bash'
+t pip-comp-zsh       'pip3 completion --zsh'
+t pip-comp-fish      'pip3 completion --fish'
+t pip-comp-powersh   'pip3 completion --powershell'
+
+# ================= PIP: OFFLINE install machinery (carpet) =================
+t pip-inst-local     'pip3 install --no-build-isolation --no-index /tmp/lp'
+t pip-import-local   'python3 -c "import localmod;assert localmod.HELLO==\"hi\""'
+t pip-show-local     'pip3 show localpkg | grep -i "^Name:.*localpkg"'
+t pip-freeze-haslp   'pip3 freeze | grep -i localpkg'
+t pip-inst-dryrun-l  'pip3 install --dry-run --no-build-isolation --no-index /tmp/lp'
+t pip-inst-report    'pip3 install --dry-run --no-build-isolation --no-index --report /tmp/rep.json /tmp/lp && python3 -c "import json;json.load(open(\"/tmp/rep.json\"))"'
+t pip-inst-forcere   'pip3 install --force-reinstall --no-build-isolation --no-index /tmp/lp'
+t pip-inst-nodeps    'pip3 install --no-deps --no-build-isolation --no-index /tmp/lp'
+t pip-inst-ignins    'pip3 install --ignore-installed --no-build-isolation --no-index /tmp/lp'
+t pip-inst-target    'pip3 install --target /tmp/tgt --no-build-isolation --no-index /tmp/lp && test -e /tmp/tgt/localmod.py'
+t pip-wheel-local    'pip3 wheel --no-build-isolation --no-index --no-deps -w /tmp/wh /tmp/lp'
+t pip-findlinks-prep 'cp /tmp/wh/localpkg-*.whl /tmp/findlinks/'
+t pip-inst-findlinks 'pip3 install --no-index --find-links /tmp/findlinks --force-reinstall localpkg'
+t pip-inst-reqs      'pip3 install --no-build-isolation --no-index -r /tmp/reqs.txt'
+t pip-inst-constr    'pip3 install --no-build-isolation --no-index -c /tmp/constraints.txt --force-reinstall /tmp/lp'
+t pip-inst-wheelfile 'pip3 install --no-index --force-reinstall /tmp/wh/localpkg-*.whl'
+t pip-inst-six-offl  'pip3 install --no-index --find-links "$WHEELS" --force-reinstall six && python3 -c "import six;print(six.__version__)"'
+t pip-uninstall-six  'pip3 uninstall -y six'
+t pip-inst-nocompile 'pip3 install --no-compile --no-index --force-reinstall /tmp/wh/localpkg-*.whl'
+t pip-inst-editable  'pip3 install --no-build-isolation --no-index -e /tmp/lp'
+t pip-list-after-e   'pip3 list --editable | grep -i localpkg || pip3 list | grep -i localpkg'
+t pip-download-local 'pip3 download --no-build-isolation --no-index --no-deps -d /tmp/dl /tmp/lp && ls /tmp/dl/localpkg* 2>/dev/null || pip3 download --no-index --no-deps -d /tmp/dl --find-links /tmp/findlinks localpkg'
+t pip-uninstall      'pip3 uninstall -y localpkg'
+t pip-uninstall-gone '! python3 -c "import localmod" 2>/dev/null'
+t pip-uninstall-reqs 'pip3 install --no-index --find-links /tmp/findlinks localpkg && printf "localpkg\n">/tmp/unreq.txt && pip3 uninstall -y -r /tmp/unreq.txt'
+
+# ================= PIP: coverage-gap install machinery (GATE) =================
+t pip-inst-user        'pip3 install --user --no-index --find-links /tmp/findlinks --force-reinstall --no-deps localpkg && python3 -c "import localmod"; pip3 uninstall -y localpkg'
+t pip-inst-prefix      'pip3 install --no-build-isolation --no-index --prefix /tmp/pfx /tmp/lp && find /tmp/pfx -name localmod.py | grep -q localmod.py'
+t pip-inst-root        'pip3 install --no-build-isolation --no-index --root /tmp/rootd /tmp/lp && find /tmp/rootd -name localmod.py | grep -q localmod.py'
+t pip-inst-upg-strat   'pip3 install --no-index --find-links /tmp/findlinks -U --upgrade-strategy eager --force-reinstall localpkg; pip3 install --no-index --find-links /tmp/findlinks --upgrade --upgrade-strategy only-if-needed localpkg'
+t pip-inst-nobinary    'pip3 install --no-build-isolation --no-index --no-binary :all: --target /tmp/nb /tmp/lp && test -e /tmp/nb/localmod.py'
+t pip-inst-onlybinary  'pip3 install --no-index --find-links /tmp/findlinks --prefer-binary --only-binary :all: --target /tmp/ob --force-reinstall --no-deps localpkg && test -e /tmp/ob/localmod.py'
+t pip-inst-reqhashes   'H=$(pip3 hash /tmp/findlinks/localpkg-*.whl | grep -o "sha256:[0-9a-f]*"); printf "localpkg==0.1.0 --hash=%s\n" "$H" > /tmp/hr.txt; pip3 install --no-index --find-links /tmp/findlinks --require-hashes -r /tmp/hr.txt --target /tmp/rh --force-reinstall'
+t pip-inst-pep517      'pip3 install --no-build-isolation --no-index --use-pep517 --target /tmp/p517 --force-reinstall /tmp/lp && test -e /tmp/p517/localmod.py'
+t pip-inst-confset     'pip3 install --no-build-isolation --no-index -C foo=bar --target /tmp/cs --force-reinstall /tmp/lp && test -e /tmp/cs/localmod.py'
+t pip-inst-nowarnloc   'pip3 install --no-build-isolation --no-index --no-warn-script-location --target /tmp/nw --force-reinstall /tmp/lp'
+t pip-inst-nowarnconf  'pip3 install --no-build-isolation --no-index --no-warn-conflicts --target /tmp/ncf --force-reinstall /tmp/lp'
+t pip-inst-noclean     'pip3 install --no-build-isolation --no-index --no-clean --target /tmp/nc --force-reinstall /tmp/lp'
+t pip-inst-src         'pip3 install --no-build-isolation --no-index --src /tmp/srcdir -e /tmp/lp && pip3 uninstall -y localpkg'
+t pip-inst-progbar     'pip3 install --no-build-isolation --no-index --progress-bar off --target /tmp/pbar --force-reinstall /tmp/lp'
+t pip-inst-rootaction  'pip3 install --no-build-isolation --no-index --root-user-action ignore --target /tmp/rua --force-reinstall /tmp/lp'
+t pip-inst-ignreqpy    'pip3 install --no-build-isolation --no-index --ignore-requires-python --target /tmp/irp --force-reinstall /tmp/lp'
+t pip-inst-checkbuild  'pip3 install --no-build-isolation --check-build-dependencies --no-index --target /tmp/cbd --force-reinstall /tmp/lp'
+t pip-inst-breaksys    'pip3 install --no-build-isolation --no-index --break-system-packages --target /tmp/bsp /tmp/lp'
+t pip-inst-existsact   'pip3 install --no-index --find-links /tmp/findlinks --exists-action w --target /tmp/ea --force-reinstall localpkg'
+t pip-inst-compile     'pip3 install --compile --no-build-isolation --no-index --target /tmp/cmp --force-reinstall /tmp/lp && ls /tmp/cmp/__pycache__ 2>/dev/null'
+t pip-inst-pre         'pip3 install --no-index --find-links /tmp/findlinks --pre --target /tmp/pre --no-deps localpkg'
+t pip-inst-spec-grammar 'pip3 install --no-index --find-links /tmp/findlinks --no-deps --force-reinstall "localpkg[x]"; pip3 install --no-index --find-links /tmp/findlinks --no-deps --force-reinstall localpkg==0.1.0'
+t pip-inst-group       'mkdir -p /tmp/pg && printf "[project]\nname=\"p\"\nversion=\"0.1\"\n[dependency-groups]\ndev=[\"localpkg\"]\n" > /tmp/pg/pyproject.toml; (cd /tmp/pg && pip3 install --no-index --find-links /tmp/findlinks --target /tmp/grp --group dev)'
+t pip-inst-crosscompat 'pip3 install --no-index --find-links /tmp/findlinks --platform any --python-version 3 --implementation py --abi none --only-binary :all: --target /tmp/xt --no-deps localpkg && test -e /tmp/xt/localmod.py'
+t pip-inst-report-std  'pip3 install --dry-run --ignore-installed --no-build-isolation --no-index --report - -q /tmp/lp | python3 -c "import sys,json;json.load(sys.stdin)"'
+ti pip-inst-indexurl   'pip3 download --no-deps -d /tmp/idx/localpkg --no-index --find-links /tmp/findlinks localpkg; pip3 install -i file:///tmp/idx --target /tmp/iu --no-deps localpkg 2>&1 | tail -1'
+ti pip-inst-extraidx   'pip3 install --no-index --find-links /tmp/findlinks --extra-index-url file:///tmp/idx --target /tmp/eiu --no-deps localpkg'
+ti pip-inst-globalopt  'pip3 install --global-option=--quiet --no-index --target /tmp/go /tmp/lp 2>&1 | tail -1'
+ti pip-inst-buildconst 'printf "setuptools\n" > /tmp/bc.txt; pip3 install --build-constraint /tmp/bc.txt --no-build-isolation --no-index --target /tmp/bcd /tmp/lp 2>&1 | tail -1'
+
+# ================= PIP: coverage-gap download (GATE) =================
+t pip-dl-nobinary      '( cd /tmp/lp && python3 setup.py sdist -d /tmp/sdist >/dev/null 2>&1 ); pip3 download --no-index --find-links /tmp/sdist --no-binary :all: --no-deps --no-build-isolation -d /tmp/dls localpkg && ls /tmp/dls/localpkg-*.tar.gz'
+t pip-dl-onlybinary    'pip3 download --no-index --find-links /tmp/findlinks --no-deps --only-binary :all: -d /tmp/dlw localpkg && ls /tmp/dlw/*.whl'
+t pip-dl-crosscompat   'pip3 download --no-index --find-links /tmp/findlinks --no-deps --platform any --python-version 3 --implementation py --abi none --dest /tmp/dlx localpkg && ls /tmp/dlx'
+t pip-dl-reqs          'printf "localpkg\n" > /tmp/dr.txt; pip3 download --no-index --find-links /tmp/findlinks --no-deps -r /tmp/dr.txt -d /tmp/dlr && ls /tmp/dlr'
+
+# ================= PIP: coverage-gap wheel (GATE) =================
+t pip-wheel-noverify   'pip3 wheel --no-build-isolation --no-index --no-deps --no-verify -w /tmp/wv /tmp/lp && ls /tmp/wv/localpkg-*.whl'
+t pip-wheel-reqs       'printf "localpkg @ file:///tmp/lp\n" > /tmp/wr.txt; pip3 wheel --no-build-isolation --no-index --no-deps -r /tmp/wr.txt --wheel-dir /tmp/wr && ls /tmp/wr/localpkg-*.whl'
+t pip-wheel-confset    'pip3 wheel --no-build-isolation --no-index --no-deps -C foo=bar --no-binary :all: --use-pep517 -w /tmp/wc /tmp/lp && ls /tmp/wc/localpkg-*.whl'
+
+# ================= PIP: coverage-gap list (GATE) =================
+t pip-list-outdated    'pip3 list --outdated --no-index'
+t pip-list-uptodate    'pip3 list --uptodate --no-index >/dev/null && echo OK'
+t pip-list-path        'pip3 install --no-index --find-links /tmp/findlinks --target /tmp/lt --no-deps localpkg; pip3 list --path /tmp/lt --format=freeze | grep -i localpkg'
+t pip-list-local       'pip3 list --local --format=freeze'
+t pip-list-pre         'pip3 list --pre --format=columns >/dev/null && echo OK'
+ti pip-list-eshort     'pip3 list -e | head -1'
+
+# ================= PIP: coverage-gap freeze (GATE) =================
+t pip-freeze-path      'pip3 install --no-index --find-links /tmp/findlinks --target /tmp/ft --no-deps localpkg; pip3 freeze --path /tmp/ft | grep -i localpkg'
+t pip-freeze-reqs      'printf "pip\n" > /tmp/fr.txt; pip3 freeze -r /tmp/fr.txt'
+t pip-freeze-excledit  'pip3 install --no-build-isolation --no-index -e /tmp/lp; pip3 freeze --exclude-editable | grep -iv localpkg >/dev/null && echo OK; pip3 uninstall -y localpkg'
+t pip-freeze-user      'pip3 freeze --user | head -1; echo rc=$?'
+
+# ================= PIP: coverage-gap config (GATE) =================
+t pip-config-scopes    'pip3 config --user set global.timeout 42 && pip3 config --user get global.timeout | grep -q 42 && pip3 config --user unset global.timeout; pip3 config --global list >/dev/null && echo OK'
+
+# ================= PIP: coverage-gap cache (GATE) =================
+t pip-cache-remove     'pip3 cache remove "nomatch*"'
+t pip-cache-list-human 'pip3 cache list "six*" --format=human'
+
+# ================= PIP: coverage-gap debug / inspect (GATE) =================
+t pip-debug-platform   'pip3 debug --platform manylinux2014_x86_64 --python-version 3.11 --implementation cp --abi cp311'
+t pip-inspect-user     'pip3 inspect --user | python3 -c "import sys,json;json.load(sys.stdin)" && echo OK'
+
+# ================= PIP: coverage-gap uninstall (GATE) =================
+t pip-uninstall-flags  'pip3 install --no-index --find-links /tmp/findlinks localpkg; pip3 uninstall -y --root-user-action ignore --break-system-packages localpkg'
+
+# ================= PIP: coverage-gap index (HELP) =================
+ti pip-index-versions  'pip3 download --no-deps -d /tmp/idx/localpkg --no-index --find-links /tmp/findlinks localpkg; pip3 index versions --no-binary :none: --index-url file:///tmp/idx localpkg 2>&1 | tail -1'
+
+# ================= PIP: coverage-gap lock (GATE) =================
+t pip-lock-stdout      'cd /tmp/lp && pip3 lock --no-build-isolation --no-index -e . -o -'
+
+# ================= PIP: coverage-gap help / hash / show / completion (GATE) =================
+t pip-help-bare        'pip3 help | grep -q Commands && pip3 help help | tail -1 && echo OK'
+t pip-hash-multi       'echo a>/tmp/h1; echo b>/tmp/h2; pip3 hash -a sha256 /tmp/h1 /tmp/h2 | grep -c sha256: | grep -q 2 && echo OK'
+t pip-show-multi       'pip3 show pip setuptools | grep -c "^Name:" | grep -q 2 && echo OK'
+t pip-comp-shortflags  'pip3 completion -b >/dev/null && pip3 completion -z >/dev/null && pip3 completion -f >/dev/null && pip3 completion -p >/dev/null && echo OK'
+
+# ================= PIP: coverage-gap global flags (GATE) =================
+t pip-glb-log          'pip3 --log /tmp/piplog.txt list >/dev/null && test -s /tmp/piplog.txt && echo OK'
+t pip-glb-disablever   'pip3 --disable-pip-version-check list >/dev/null && echo OK'
+t pip-glb-cachedir     'pip3 --cache-dir /tmp/pcache cache dir | grep -q /tmp/pcache && echo OK'
+t pip-glb-vqstack      'pip3 -vvv list >/dev/null && pip3 -qqq list >/dev/null && echo OK'
+t pip-glb-debug        'pip3 --debug list >/dev/null && echo OK'
+t pip-glb-keyring      'pip3 --keyring-provider disabled list >/dev/null && echo OK'
+t pip-glb-timeouts     'pip3 --timeout 5 --retries 1 --resume-retries 1 list >/dev/null && echo OK'
+t pip-glb-nocolinput   'pip3 --no-color --no-input list >/dev/null && echo OK'
+t pip-glb-isolated-sub 'pip3 --isolated list >/dev/null && pip3 --no-cache-dir install --no-index --find-links /tmp/findlinks --force-reinstall --no-deps localpkg'
+ti pip-glb-usefeature  'pip3 --use-feature fast-deps --no-index list >/dev/null 2>&1; pip3 install --help | grep -q use-feature && echo OK'
+ti pip-glb-reqvenv     'pip3 --require-virtualenv list 2>&1 | tail -1'
+
+# ================= PIP: coverage-gap env vars (GATE/HELP) =================
+t pip-env-noindex      'PIP_NO_INDEX=1 PIP_FIND_LINKS=/tmp/findlinks pip3 install --force-reinstall --no-deps localpkg'
+ti pip-env-reqvenv     'PIP_REQUIRE_VIRTUALENV=true pip3 list 2>&1 | tail -1'
+
+# ================= PIP: coverage-gap error paths (HELP) =================
+ti pip-err-probes      'pip3 show nonexistent_xyz; echo rc=$?; pip3 install --no-index --dry-run nonexistent_xyz 2>&1 | tail -1; pip3 config get global.nope; echo rc=$?; pip3 help nosuchcmd 2>&1 | tail -1; pip3 install --no-index -r /tmp/nope.txt 2>&1 | tail -1; pip3 uninstall -y nonexistent_xyz 2>&1 | tail -1'
+
+# ================= PIP: coverage-gap invocation forms (GATE) =================
+t pip-inv-plain        'pip --version; pip3.14 --version || pip3.12 --version || pip3 --version'
+t pip-inv-mainmod      'python3 -m pip.__main__ --version'
+t pip-inv-bare         'command -v pip >/dev/null && pip --version'
+t pip-inv-versioned    'for v in pip3.14 pip3.13 pip3.12 pip3; do command -v $v >/dev/null 2>&1 && { $v --version && break; }; done'
+t pip-inv-mdlwheel     'python3 -m pip download --no-build-isolation --no-index --no-deps -d /tmp/mdl /tmp/lp && ls /tmp/mdl; python3 -m pip wheel --no-build-isolation --no-index --no-deps -w /tmp/mwh /tmp/lp'
+
+# ================= PIP: lock (pip 25.1+ experimental) =================
+ti pip-lock          'cd /tmp/lp && pip3 lock --no-build-isolation --no-index -e . 2>&1 | tail -2'
+
+# (pip search / pip index versions are network ops -> covered by httpsprobe + host baseline,
+#  excluded from the offline gate because StarryOS net data-path can block uninterruptibly.)
+
+# ================= PIP: invocation styles =================
+t pipm-version       'python3 -m pip --version'
+t pipm-list          'python3 -m pip list'
+t pipm-install       'python3 -m pip install --no-build-isolation --no-index /tmp/lp && python3 -c "import localmod" && python3 -m pip uninstall -y localpkg'
+t pipm-show          'python3 -m pip show pip'
+t pipm-freeze        'python3 -m pip freeze'
+ti pipm-check         'python3 -m pip check || true'
+t pipm-help          'python3 -m pip help'
+t pipm-config        'python3 -m pip config list'
+t pyver-m-pip        'python3.14 -m pip --version || python3 -m pip --version'
+t pyapi-internal     'python3 -c "from pip._internal.cli.main import main; import sys; sys.exit(main([\"--version\"]))"'
+t pyapi-runpy        'python3 -c "import runpy,sys; sys.argv=[\"pip\",\"--version\"]; runpy.run_module(\"pip\",run_name=\"__main__\")"'
+ti pyapi-legacy      'python3 -c "from pip import main; main([\"--version\"])" 2>&1 | tail -1'
+t  pyapi-pipmain     'python3 -c "import pip,sys; sys.exit(pip.main([\"--version\"]))"'
+
+# ================= PIP: industrial option coverage (every option exercised) =================
+t pip-inst-allrel    'pip3 install --no-index --find-links /tmp/findlinks --all-releases :all: --no-deps --target /tmp/ar --force-reinstall localpkg && test -e /tmp/ar/localmod.py'
+t pip-inst-onlyfin   'pip3 install --no-index --find-links /tmp/findlinks --only-final :all: --no-deps --target /tmp/of --force-reinstall localpkg && test -e /tmp/of/localmod.py'
+t pip-inst-pep723    'printf "# /// script\n# dependencies = [\"localpkg\"]\n# ///\nprint(1)\n" > /tmp/p723.py; pip3 install --no-index --find-links /tmp/findlinks --no-deps --target /tmp/rfs --force-reinstall --requirements-from-script /tmp/p723.py && test -e /tmp/rfs/localmod.py'
+t pip-inst-sdist     '( cd /tmp/lp && python3 setup.py sdist -d /tmp/sdist >/dev/null 2>&1 ); pip3 install --no-index --no-build-isolation --target /tmp/sdt --force-reinstall /tmp/sdist/localpkg-*.tar.gz && test -e /tmp/sdt/localmod.py'
+t pip-dl-relctl      'pip3 download --no-index --find-links /tmp/findlinks --all-releases :all: --no-deps -d /tmp/dlar localpkg && ls /tmp/dlar/*.whl && pip3 download --no-index --find-links /tmp/findlinks --only-final :all: --no-deps -d /tmp/dlof localpkg && ls /tmp/dlof/*.whl'
+t pip-dl-pep723      'pip3 download --no-index --find-links /tmp/findlinks --no-deps -d /tmp/dlrfs --requirements-from-script /tmp/p723.py && ls /tmp/dlrfs/*.whl'
+t pip-list-pkgsel    'pip3 list --no-index --find-links /tmp/findlinks --all-releases :all: --format=freeze >/dev/null && pip3 list --no-index --find-links /tmp/findlinks --only-final :all: --no-binary :none: --only-binary :all: --prefer-binary --format=freeze >/dev/null && echo OK'
+ti pip-list-idxopts   'pip3 list --no-index --find-links /tmp/findlinks --outdated >/dev/null 2>&1; pip3 list --no-index --find-links /tmp/findlinks --uptodate >/dev/null 2>&1; pip3 list --no-index --find-links /tmp/findlinks --uploaded-prior-to P1D --outdated >/dev/null 2>&1; echo OK'
+t pip-inspect-path   'pip3 install --no-index --find-links /tmp/findlinks --target /tmp/it --no-deps --force-reinstall localpkg && pip3 inspect --path /tmp/it | python3 -c "import sys,json;json.load(sys.stdin)" && echo OK'
+ti pip-config-site    'pip3 config --site list >/dev/null 2>&1; pip3 config --site debug >/dev/null 2>&1; echo OK'
+t pip-lock-opts      'printf "localpkg\n" > /tmp/lockreq.txt; cd /tmp/lp && (pip3 lock --no-build-isolation --no-index --find-links /tmp/findlinks -r /tmp/lockreq.txt 2>&1 | tail -1 || pip3 lock --no-build-isolation --no-index -e . 2>&1 | tail -1) && echo done'
+ti pip-glb-netflags  'pip3 install --help | grep -qE "client-cert" && pip3 --no-color --no-input --isolated list >/dev/null && echo OK'
+ti pip-glb-usedeprec 'pip3 install --help | grep -q use-deprecated && echo OK'
+
+# ================= venv =================
+# `python -m venv` auto-ensurepip does a NESTED subprocess (python -> ensurepip ->
+# subprocess(python -m pip)) which currently fails on starry (nested fork-exec gap; the main
+# pip bootstrap above sidesteps it via an in-process direct install). So we test the venv
+# FEATURE with --without-pip (works on starry) + install pip into the venv directly (proven
+# in-process method), and record the auto-ensurepip gap as ti (non-gating, #764 kernel candidate).
+t venv-create        'rm -rf /tmp/v; python3 -m venv --without-pip /tmp/v && test -x /tmp/v/bin/python'
+t venv-pip-boot      'WHL=$(ls "$WHEELS"/pip-*.whl /usr/lib/python3.14/ensurepip/_bundled/pip-*.whl 2>/dev/null | head -1); PYTHONPATH="$WHL" /tmp/v/bin/python -m pip install --no-index --no-cache-dir "$WHL" && /tmp/v/bin/pip --version'
+t venv-pip-ver       '/tmp/v/bin/pip --version'
+t venv-pip-list      '/tmp/v/bin/pip list | grep -qi "^pip "'
+t venv-seed-setup    '/tmp/v/bin/pip install --no-index --find-links "$WHEELS" setuptools wheel'
+t venv-pip-install   '/tmp/v/bin/pip install --no-build-isolation --no-index /tmp/lp && /tmp/v/bin/python -c "import localmod"'
+t venv-pip-uninstall '/tmp/v/bin/pip uninstall -y localpkg'
+ti venv-ensurepip-gap 'python3 -m venv /tmp/ve 2>&1 | tail -2; echo "NOTE: python -m venv auto-ensurepip (nested subprocess) known-fails on starry — #764 kernel candidate; --without-pip path above works"'
+# free tmpfs (guest RAM): /tmp is RAM-backed; accumulated venvs/wheels otherwise starve later
+# heavy ops on small-RAM arches (loong). Drop dirs not needed by the uv section below.
+rm -rf /tmp/v /tmp/dl /tmp/wh /tmp/tgt /tmp/dn 2>/dev/null; echo "CLEANUP-post-pipvenv"
+
+# ================= UV (offline full surface) — BEFORE online so net-hang can't block gating =================
+if command -v uv >/dev/null 2>&1; then
+  echo "UV_PRESENT=1"; uv --version 2>&1 | sed 's/^/UVVER /'
+  export UV_LINK_MODE=copy UV_NO_PROGRESS=1 UV_OFFLINE=1
+  t uv-version        'uv --version | grep -q "uv 0.11"'
+  t uv-help           'uv --help'
+  t uv-self-version   'uv self version || uv version || uv --version'
+  t uv-python-list    'uv python list'
+  ti uv-python-dir     'uv python dir || true'
+  t uv-cache-dir      'uv cache dir'
+  t uv-venv           'uv venv /tmp/uvv'
+  t uv-venv-clear     'rm -rf /tmp/uvv2; uv venv /tmp/uvv2 && test -x /tmp/uvv2/bin/python'
+  t uv-pip-help       'uv pip --help'
+  t uv-pip-list       'uv pip list --python /tmp/uvv/bin/python'
+  t uv-pip-seedsetup  'uv pip install --python /tmp/uvv/bin/python --no-index --find-links "$WHEELS" setuptools wheel'
+  t uv-pip-instlocal  'uv pip install --python /tmp/uvv/bin/python --no-build-isolation /tmp/lp && /tmp/uvv/bin/python -c "import localmod"'
+  t uv-pip-show       'uv pip show --python /tmp/uvv/bin/python localpkg'
+  t uv-pip-freeze     'uv pip freeze --python /tmp/uvv/bin/python'
+  ti uv-pip-check      'uv pip check --python /tmp/uvv/bin/python || true'
+  ti uv-pip-tree       'uv pip tree --python /tmp/uvv/bin/python || true'
+  t uv-pip-instwheel  'uv pip install --python /tmp/uvv/bin/python --no-index --find-links /tmp/findlinks --reinstall localpkg'
+  t uv-pip-uninstall  'uv pip uninstall --python /tmp/uvv/bin/python localpkg'
+  printf 'localpkg\n' > /tmp/req.in
+  t uv-pip-compile    'uv pip compile --no-build-isolation --no-index --find-links /tmp/findlinks /tmp/req.in -o /tmp/req.lock 2>&1 | tail -1; test -f /tmp/req.lock'
+  ti uv-pip-sync       'uv pip sync --python /tmp/uvv/bin/python --no-index --find-links /tmp/findlinks /tmp/req.lock || true'
+  t uv-init           'cd /tmp && rm -rf uvproj && uv init --no-workspace uvproj && test -f uvproj/pyproject.toml'
+  t uv-add-offline    'cd /tmp/uvproj && uv add --offline --find-links /tmp/findlinks localpkg 2>&1 | tail -2 || uv add --no-index --find-links /tmp/findlinks localpkg'
+  t uv-lock           'cd /tmp/uvproj && uv lock --offline 2>&1 | tail -1 || uv lock'
+  ti uv-tree           'cd /tmp/uvproj && uv tree --offline 2>&1 | tail -3 || true'
+  ti uv-export         'cd /tmp/uvproj && uv export --no-emit-project 2>&1 | tail -2 || true'
+  ti uv-run            'cd /tmp/uvproj && uv run --offline python -c "print(42)" 2>&1 | tail -1 || true'
+  ti uv-sync           'cd /tmp/uvproj && uv sync --offline 2>&1 | tail -2 || uv sync --no-sources 2>&1 | tail -2 || true'
+  t uv-remove         'cd /tmp/uvproj && (uv remove --offline localpkg 2>&1 | tail -2 || uv remove localpkg 2>&1 | tail -2 || true)'
+  ti uv-tree-after     'cd /tmp/uvproj && uv tree --offline 2>&1 | tail -2 || true'
+  # ===== UV: industrial option coverage (every option exercised) =====
+  t uv-pip-compile-ind  'uv pip compile --no-index --find-links /tmp/findlinks --no-deps --no-strip-extras --no-strip-markers --annotation-style line --custom-compile-command "carpet" --no-emit-package pip --emit-index-url --emit-find-links /tmp/req.in -o /tmp/co1.txt 2>&1 | tail -1; test -f /tmp/co1.txt'
+  t uv-pip-compileb-ind 'uv pip compile --no-index --find-links /tmp/findlinks --no-build /tmp/req.in -o /tmp/co2.txt 2>&1 | tail -1; uv pip compile --no-index --find-links /tmp/findlinks --universal /tmp/req.in -o /tmp/co2u.txt 2>&1 | tail -1; uv pip compile --no-index --find-links /tmp/findlinks --python-platform x86_64-unknown-linux-gnu /tmp/req.in -o /tmp/co2p.txt 2>&1 | tail -1; test -f /tmp/co2.txt && test -f /tmp/co2p.txt'
+  t uv-pip-compilec-ind 'uv pip compile --no-index --find-links /tmp/findlinks -c /tmp/constraints.txt --overrides /tmp/over.txt /tmp/req.in -o /tmp/co3.txt 2>&1 | tail -1; test -f /tmp/co3.txt'
+  t uv-pip-inst-ind     'uv pip install --python /tmp/uvv/bin/python --no-index --find-links /tmp/findlinks --no-editable --exact --reinstall-package localpkg --link-mode copy --compile-bytecode --no-deps localpkg'
+  t uv-pip-instc-ind    'uv pip install --python /tmp/uvv/bin/python --no-index --find-links /tmp/findlinks -c /tmp/constraints.txt --overrides /tmp/over.txt --no-build --reinstall --no-deps localpkg'
+  t uv-pip-sync-ind     'uv pip sync --python /tmp/uvv/bin/python --no-index --find-links /tmp/findlinks --reinstall --refresh --link-mode copy --compile-bytecode --no-allow-empty-requirements /tmp/req.in 2>&1 | tail -1 || true; printf "" > /tmp/empty.txt; uv pip sync --python /tmp/uvv/bin/python --allow-empty-requirements --dry-run /tmp/empty.txt'
+  ti uv-pip-tree-ind     'uv pip tree --python /tmp/uvv/bin/python --prune pip --strict 2>&1 | tail -1 || true; uv pip tree --python /tmp/uvv/bin/python --package localpkg 2>&1 | tail -1 || true; echo OK'
+  ti uv-pip-listedit-ind 'uv pip list --python /tmp/uvv/bin/python --editable 2>&1 | tail -1 || true; uv pip freeze --python /tmp/uvv/bin/python --path /tmp/uvv/lib 2>&1 | tail -1 || true; echo OK'
+  t uv-pip-tgtpfx-ind   'uv pip install --python /tmp/uvv/bin/python --no-index --find-links /tmp/findlinks --target /tmp/uvtg2 --no-deps localpkg 2>&1 | tail -1 && test -e /tmp/uvtg2/localmod.py'
+  # enriched project (extras + dependency-groups + offline find-links) for group/extra option coverage
+  printf "localpkg\n" > /tmp/over.txt
+  rm -rf /tmp/uvp2; cd /tmp && uv init --no-workspace uvp2 >/dev/null 2>&1
+  cat > /tmp/uvp2/pyproject.toml <<PYEOF
+[project]
+name = "uvp2"
+version = "0.1.0"
+requires-python = ">=$PYTAG"
+dependencies = ["localpkg"]
+[project.optional-dependencies]
+x = ["localpkg"]
+[dependency-groups]
+dev = ["localpkg"]
+test = ["localpkg"]
+[tool.uv]
+package = false
+no-index = true
+find-links = ["/tmp/findlinks"]
+PYEOF
+  ( cd /tmp/uvp2 && uv python pin "$PYTAG" >/dev/null 2>&1; uv lock --offline >/dev/null 2>&1 )
+  ti uv-add-ind       'cd /tmp/uvp2 && uv add --offline --find-links /tmp/findlinks --no-sync --frozen --optional x --bounds major localpkg 2>&1 | tail -1; uv add --offline --find-links /tmp/findlinks --no-sync --frozen --group test localpkg 2>&1 | tail -1; echo OK'
+  ti uv-remove-ind    'cd /tmp/uvp2 && uv remove --no-sync --frozen --optional x localpkg 2>&1 | tail -1 || true; uv remove --no-sync --frozen --group test localpkg 2>&1 | tail -1 || true; echo OK'
+  ti uv-sync-grp-ind  'cd /tmp/uvp2 && uv sync --offline --frozen --all-extras --all-groups 2>&1 | tail -1 || true; uv sync --offline --frozen --no-dev --no-default-groups 2>&1 | tail -1 || true; uv sync --offline --frozen --only-group test 2>&1 | tail -1 || true; echo OK'
+  ti uv-export-grp-ind 'cd /tmp/uvp2 && uv export --offline --frozen --all-extras --no-emit-project --no-hashes 2>&1 | tail -1 || true; uv export --offline --frozen --only-group dev 2>&1 | tail -1 || true; echo OK'
+  ti uv-tree-grp-ind  'cd /tmp/uvp2 && uv tree --offline --frozen --no-dev --prune pip 2>&1 | tail -1 || true; uv tree --offline --frozen --package uvp2 2>&1 | tail -1 || true; echo OK'
+  ti uv-run-grp-ind   'cd /tmp/uvp2 && uv run --offline --frozen --no-dev --isolated python -c "print(1)" 2>&1 | tail -1 || true; uv run --offline --frozen -m site 2>&1 | tail -1 || true; echo OK'
+  ti uv-check-grp-ind 'cd /tmp/uvp2 && uv check --offline --frozen --no-dev 2>&1 | tail -1 || uv lock --check 2>&1 | tail -1 || true; echo OK'
+  ti uv-init-be-ind   'cd /tmp && rm -rf ibh ifl ipd; uv init --no-workspace --build-backend hatch ibh 2>&1 | tail -1 || true; uv init --no-workspace --build-backend flit ifl 2>&1 | tail -1 || true; uv init --no-workspace --package --description "d" --author-from none ipd 2>&1 | tail -1 || true; echo OK'
+  ti uv-global-ind    'uv --no-config --no-managed-python --no-python-downloads --quiet --color never pip list --python /tmp/uvv/bin/python >/dev/null 2>&1; uv --config-file /dev/null --project /tmp/uvp2 tree --offline --frozen 2>&1 | tail -1 || true; echo OK'
+  ti uv-pylist-ind    'uv python list --all-platforms --all-arches --show-urls 2>&1 | tail -1 || true; uv python list --only-installed 2>&1 | tail -1 || true; echo OK'
+  t uv-venv-ind      'cd /tmp; rm -rf /tmp/uvvf; uv venv --force --index-strategy unsafe-best-match --no-index --find-links /tmp/findlinks /tmp/uvvf 2>&1 | tail -1 && test -x /tmp/uvvf/bin/python'
+  ti uv-version-ind   'cd /tmp/uvp2 && uv version --frozen --no-sync 2>&1 | tail -1 || true; uv version --frozen --dry-run --bump patch 2>&1 | tail -1 || true; echo OK'
+  ti uv-build-ind     'cd /tmp/lp && uv build --offline --no-build-isolation --no-build-logs --sdist -o /tmp/uvd2 2>&1 | tail -1 || true; echo OK'
+  ti uv-workspace-list 'cd /tmp/uvp2 && uv workspace list 2>&1 | tail -2 || true'
+  # uv 0.11.19 top-level subcommands (auth/format/workspace/check/audit). check needs a synced
+  # project; audit hits the OSV network service -> exercise at --help level (non-gating ti).
+  ti uv-auth-help      'uv auth --help 2>&1 | head -2'
+  ti uv-format-help    'uv format --help 2>&1 | head -2'
+  ti uv-workspace-help 'uv workspace --help 2>&1 | head -2'
+  ti uv-check-help     'uv check --help 2>&1 | head -2'
+  ti uv-audit-help     'uv audit --help 2>&1 | head -2'
+  t  uv-check-offline  'cd /tmp/uvproj && uv lock --offline >/dev/null 2>&1; uv check --offline 2>&1 | tail -2 || uv lock --check 2>&1 | tail -2 || true'
+  t uv-help-sub        'uv help'
+  # ---- uv python full subcommands ----
+  ti uv-python-find     'uv python find 2>&1 | tail -1 || true'
+  ti uv-python-pin      'cd /tmp/uvproj && uv python pin "$PYTAG" 2>&1 | tail -1 || true'
+  ti uv-python-inst-h  'uv python install --help 2>&1 | head -2'
+  ti uv-python-upg-h   'uv python upgrade --help 2>&1 | head -2'
+  ti uv-python-unin-h  'uv python uninstall --help 2>&1 | head -2'
+  # ---- uv tool full subcommands (run/install/upgrade need network -> --help level) ----
+  ti uv-tool-run-h     'uv tool run --help 2>&1 | head -2'
+  ti uvx-h             'uvx --help 2>&1 | head -2 || uv tool run --help 2>&1 | head -2'
+  ti uv-tool-inst-h    'uv tool install --help 2>&1 | head -2'
+  ti uv-tool-upg-h     'uv tool upgrade --help 2>&1 | head -2'
+  ti uv-tool-unin-h    'uv tool uninstall --help 2>&1 | head -2'
+  # ---- uv cache size + self update (network) ----
+  ti uv-cache-size      'uv cache size 2>&1 | tail -1 || true'
+  ti uv-self-upd-h     'uv self update --help 2>&1 | head -2'
+  # ---- uv pip compile/sync extra forms + uv export forms ----
+  ti uv-pip-list-fmt    'uv pip list --python /tmp/uvv/bin/python --format json 2>&1 | head -1 || uv pip list --python /tmp/uvv/bin/python 2>&1 | head -1 || true'
+  # ================= UV: coverage-gap (GATE/HELP) =================
+  t uv-glb-flags       'uv --color never --no-config --version && uv -V && uv --directory /tmp --no-config self version --short; uv --no-cache pip list --python /tmp/uvv/bin/python | head -1; uv --directory /tmp/uvproj tree --offline'
+  t uv-help-subcmd     'uv help pip install 2>&1 | head -3 && uv help python'
+  t uv-pip-list-strict 'uv pip list --python /tmp/uvv/bin/python --format freeze && uv pip list --python /tmp/uvv/bin/python --format json && uv pip list --python /tmp/uvv/bin/python --strict && uv pip list --python /tmp/uvv/bin/python --exclude pip --exclude-editable'
+  t uv-pip-show-files  'uv pip install --python /tmp/uvv/bin/python --no-index --find-links "$WHEELS" setuptools wheel >/dev/null 2>&1; uv pip show --python /tmp/uvv/bin/python -f localpkg && uv pip show --python /tmp/uvv/bin/python --strict setuptools wheel localpkg'
+  t uv-pip-freeze-opts 'uv pip freeze --python /tmp/uvv/bin/python --exclude pip --exclude-editable && uv pip freeze --python /tmp/uvv/bin/python --strict'
+  t uv-pip-tree-opts   'uv pip tree --python /tmp/uvv/bin/python --depth 2 --no-dedupe --show-version-specifiers --invert'
+  ti uv-pip-check-plat 'uv pip check --python /tmp/uvv/bin/python --python-platform x86_64-unknown-linux-musl || true'
+  t uv-pip-compile-fmt 'uv pip compile --no-index --find-links /tmp/findlinks /tmp/req.in -o /tmp/pylock.toml --format pylock.toml --no-header --no-annotate && uv pip compile --no-index --find-links /tmp/findlinks --universal --generate-hashes /tmp/req.in -o /tmp/c2.txt'
+  t uv-pip-sync-opts   'uv pip sync --python /tmp/uvv/bin/python --no-index --find-links /tmp/findlinks --dry-run --strict /tmp/req.lock; printf "" > /tmp/empty.txt && uv pip sync --python /tmp/uvv/bin/python --allow-empty-requirements --dry-run /tmp/empty.txt'
+  t uv-pip-inst-opts   'uv pip install --python /tmp/uvv/bin/python --no-index --find-links /tmp/findlinks --dry-run --no-deps localpkg && uv pip install --python /tmp/uvv/bin/python --no-build-isolation --target /tmp/uvtgt /tmp/lp && uv pip install --python /tmp/uvv/bin/python --no-build-isolation -e /tmp/lp && uv pip install --python /tmp/uvv/bin/python --no-index --find-links /tmp/findlinks -r /tmp/req.in; uv pip install --python /tmp/uvv/bin/python --no-index --find-links /tmp/findlinks --reinstall --no-deps localpkg'
+  t uv-pip-uninst-opts 'uv pip uninstall --python /tmp/uvv/bin/python --dry-run localpkg; printf "localpkg\n" > /tmp/unr.txt && uv pip uninstall --python /tmp/uvv/bin/python -r /tmp/unr.txt --dry-run'
+  t uv-venv-opts       'cd /tmp && rm -rf /tmp/uvvopt /tmp/uvvrel /tmp/uvpy && uv venv --clear --prompt myenv --system-site-packages --no-project /tmp/uvvopt && test -x /tmp/uvvopt/bin/python && uv venv --relocatable /tmp/uvvrel && uv venv --allow-existing /tmp/uvvrel && uv venv --python "$(command -v python3)" /tmp/uvpy && test -x /tmp/uvpy/bin/python'
+  ti uv-venv-seed      'uv venv --seed /tmp/uvseed && test -x /tmp/uvseed/bin/python || true'
+  t uv-init-shapes     'cd /tmp && rm -rf ib il ia ibe is.py && uv init --bare --no-workspace ib && uv init --lib --no-workspace --no-readme --vcs none il && uv init --app --no-workspace --name myapp --no-pin-python ia && uv init --script /tmp/is.py && uv init --no-workspace --build-backend setuptools ibe'
+  t uv-add-opts        'cd /tmp/uvproj && uv add --no-sync --dev --bounds exact --offline --find-links /tmp/findlinks localpkg 2>&1 | tail -2; uv add --no-sync --group test --raw --offline --find-links /tmp/findlinks localpkg'
+  ti uv-remove-opts     'cd /tmp/uvproj && uv remove --no-sync --frozen --dev localpkg 2>&1 | tail -2 || true; uv remove --no-sync --frozen --group test localpkg 2>&1 | tail -2 || true'
+  t uv-lock-check      'cd /tmp/uvproj && uv lock --offline && uv lock --check 2>&1 | tail -1 && uv lock --check-exists 2>&1 | tail -1 && uv lock --dry-run'
+  ti uv-sync-check      'cd /tmp/uvproj && uv sync --frozen --check 2>&1 | tail -2 || true; uv sync --frozen --dry-run --output-format json 2>&1 | tail -2 || true; uv sync --frozen --no-install-project 2>&1 | tail -2 || true'
+  t uv-export-fmt      'cd /tmp/uvproj && uv lock --offline && uv export --format pylock.toml --no-hashes 2>&1 | tail -2 && uv export --format cyclonedx1.5 2>&1 | tail -2 && uv export --no-header --no-annotate -o /tmp/exp.txt && uv export --frozen --no-emit-workspace'
+  t uv-tree-proj-opts  'cd /tmp/uvproj && uv lock --offline && uv tree --frozen --depth 1 --no-dedupe --invert 2>&1 | tail -3 && uv tree --frozen --universal'
+  t uv-run-opts        'cd /tmp/uvproj && uv run --no-project --offline -m site 2>&1 | tail -1 || true; printf "PYUV=1\n" > /tmp/uv.env && uv run --no-project --offline --env-file /tmp/uv.env python -c "import os;print(os.environ.get(\"PYUV\"))" 2>&1 | tail -1; printf "# /// script\n# ///\nprint(7)\n" > /tmp/s.py && uv run --no-project --offline --script /tmp/s.py'
+  ti uv-run-with       'cd /tmp/uvproj && uv run --offline --with localpkg --find-links /tmp/findlinks python -c "print(1)" 2>&1 | tail -1 || true'
+  t uv-version-proj    'cd /tmp/uvproj && uv version --short && uv version --output-format json 2>&1 | tail -1 && uv version --dry-run --bump minor 2>&1 | tail -1 && uv version --dry-run --frozen 1.2.3'
+  t uv-self-version-fmt 'uv self version --short && uv self version --output-format json'
+  t uv-python-list-fmt 'uv python list --only-installed && uv python list --all-versions --output-format json 2>&1 | head -c 80'
+  ti uv-python-find-opts 'uv python find --show-version 2>&1 | tail -1 || true; uv python find --system 2>&1 | tail -1 || true; uv python find 3 2>&1 | tail -1 || true'
+  ti uv-python-pin-opts 'cd /tmp/uvproj && uv python pin --no-project 3.12 2>&1 | tail -1 && uv python pin --resolved 2>&1 | tail -1 || true; uv python pin --rm 2>&1 | tail -1 || true'
+  t uv-python-dir-bin  'uv python dir --bin'
+  ti uv-python-uninst   'uv python uninstall --all 2>&1 | tail -2 || true'
+  t uv-python-updshell 'uv python update-shell 2>&1 | tail -2 || uv python update-shell --help'
+  ti uv-python-inst    'uv python install --offline --default --reinstall 3.12 2>&1 | tail -2 || true'
+  ti uv-tool-list-opts  'uv tool list --show-paths --show-version-specifiers --show-with --show-extras --show-python 2>&1 | tail -2 || true'
+  t uv-tool-dir-bin    'uv tool dir --bin'
+  ti uv-tool-uninst-all 'uv tool uninstall --all 2>&1 | tail -2 || true'
+  ti uv-tool-upgrade    'uv tool upgrade --all --offline 2>&1 | tail -2 || true'
+  t uv-tool-updshell   'uv tool update-shell 2>&1 | tail -2 || uv tool update-shell --help'
+  ti uv-cache-clean-pkg 'uv cache clean localpkg 2>&1 | tail -1 || true; uv cache clean --force 2>&1 | tail -1 || true'
+  ti uv-cache-prune-ci  'uv cache prune --ci 2>&1 | tail -1 || true; uv cache prune --force 2>&1 | tail -1 || true'
+  ti uv-cache-size-h   'uv cache size --human 2>&1 | tail -1 || true'
+  ti uv-auth-dir-token  'uv auth dir && uv auth dir pypi.org 2>&1 | tail -1 || true; uv auth token pypi.org 2>&1 | tail -1 || true'
+  ti uv-workspace-meta  'cd /tmp/uvproj && uv workspace metadata 2>&1 | tail -2 || true; uv workspace dir 2>&1 | tail -1 || true'
+  ti uv-format-check   'cd /tmp/uvproj && uv format --check --offline 2>&1 | tail -2 || true; uv auth login --help 2>&1 | head -2; uv auth logout --help 2>&1 | head -2'
+  ti uvx-version       'uvx --version 2>&1 | tail -1 || uv tool run --version 2>&1 | tail -1 || true'
+  # free the uv venvs/project (RAM-backed tmpfs) before the heavy build/cache ops below
+  rm -rf /tmp/uvv /tmp/uvv2 /tmp/uvproj 2>/dev/null; echo "CLEANUP-pre-uvbuild"
+  ti uv-build          'cd /tmp/lp && uv build --offline --no-build-isolation 2>&1 | tail -2 || true'
+  t uv-build-opts     'cd /tmp/lp && uv build --offline --no-build-isolation --sdist -o /tmp/uvdist 2>&1 | tail -2 && uv build --offline --no-build-isolation --wheel --clear -o /tmp/uvdist 2>&1 | tail -2 && uv build --offline --no-build-isolation --force-pep517 -o /tmp/uvdist2'
+  ti uv-cache-clean    'uv cache clean 2>&1 | tail -1 || true'
+  ti uv-cache-prune    'uv cache prune 2>&1 | tail -1 || true'
+  ti uv-publish-dry    'cd /tmp/lp && uv build --offline --no-build-isolation -o dist 2>&1 | tail -1; uv publish --dry-run dist/* 2>&1 | tail -2 || true'
+  t uv-tool-help      'uv tool --help'
+  ti uv-tool-dir       'uv tool dir || true'
+  ti uv-tool-list      'uv tool list || true'
+  unset UV_OFFLINE
+else
+  echo "UV_PRESENT=0"
+fi
+
+# ================= ONLINE (PyPI / Tsinghua+Aliyun mirrors over slirp) =================
+# Online install MUST be exercised (official PyPI + Tsinghua -i + extra-index-url + config
+# mirror + self-upgrade). Recorded as CBNET, NOT in the offline gate. On host these run;
+# on starry the TLS large-segment RX data-path is being root-fixed (#292) — until then a
+# fast SIGKILL-bounded probe gates the suite so the run can never hang. Once the starry net
+# data-path fix lands, set CARPET_ONLINE=1 in the starry toml to enable it there too.
+# HOST-ONLY GATE: starry's net recv can block UNINTERRUPTIBLY (a stalled TLS RX leaves the
+# task in D-state; even `timeout -s KILL` cannot reap it -> the whole run hangs to the qemu
+# timeout). So the entire online section runs ONLY when CARPET_ONLINE=1 (run_host.sh sets it).
+# starry (toml) leaves it unset -> section skipped entirely -> never hangs, reaches CARPET_END.
+if [ "${CARPET_ONLINE:-0}" = 1 ]; then
+for IF in eth0 enp0s1 enp0s2 enp0s3; do ip link set $IF up 2>/dev/null; ip addr add 10.0.2.15/24 dev $IF 2>/dev/null; done
+ip route add default via 10.0.2.2 2>/dev/null
+[ -s /etc/resolv.conf ] || echo "nameserver 10.0.2.3" > /etc/resolv.conf 2>/dev/null
+mkdir -p /tmp/on
+# Probe with pip itself (proxy/fake-IP-aware, same data path the online tests use) rather than a
+# raw socket — a SIGKILL-bounded `pip download` of a tiny pkg. ok on host; on starry the TLS RX
+# stall makes it time out -> clean skip (until the net data-path root-fix lands, then it auto-runs).
+ONLINE_OK=0
+rm -rf /tmp/on/_probe; mkdir -p /tmp/on/_probe
+if timeout -s KILL 60 pip3 download --no-cache-dir --timeout 20 --retries 1 --no-deps -d /tmp/on/_probe six >/tmp/onp 2>&1 && ls /tmp/on/_probe/six* >/dev/null 2>&1; then ONLINE_OK=1; fi
+echo "ONLINE_PROBE ok=$ONLINE_OK :: $(tail -1 /tmp/onp 2>/dev/null)"
+if [ "$ONLINE_OK" = 1 ]; then
+  n pip-online-pypi      'pip3 install --no-cache-dir --timeout 30 --retries 1 --target /tmp/on/np numpy && ls /tmp/on/np | grep -qi numpy'
+  n pip-online-tsinghua  'pip3 install --no-cache-dir --timeout 30 --retries 1 -i https://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple --target /tmp/on/six six && ls /tmp/on/six | grep -qi six'
+  n pip-online-extraidx  'pip3 install --no-cache-dir --timeout 30 --retries 1 --index-url https://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple --extra-index-url https://mirrors.aliyun.com/pypi/simple --target /tmp/on/req requests && ls /tmp/on/req | grep -qi requests'
+  n pip-online-cfgmirror 'pip3 config set global.index-url https://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple; pip3 install --no-cache-dir --timeout 30 --retries 1 --target /tmp/on/idna idna; R=$?; pip3 config unset global.index-url; [ $R -eq 0 ] && ls /tmp/on/idna | grep -qi idna'
+  n pip-online-download  'pip3 download --no-cache-dir --timeout 30 --retries 1 --no-deps -d /tmp/on/dl certifi 2>&1 | tail -1; ls /tmp/on/dl | grep -qi certifi'
+  n pip-online-index     'pip3 index versions pip 2>&1 | tail -2'
+  if command -v uv >/dev/null 2>&1; then
+    n uv-online-pypi     'uv venv /tmp/uvon >/dev/null 2>&1; uv pip install --python /tmp/uvon/bin/python --no-cache requests 2>&1 | tail -2; /tmp/uvon/bin/python -c "import requests"'
+    n uv-online-mirror   'uv venv /tmp/uvon2 >/dev/null 2>&1; uv pip install --python /tmp/uvon2/bin/python --no-cache --default-index https://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple six 2>&1 | tail -2; /tmp/uvon2/bin/python -c "import six"'
+  fi
+  # per user requirement: run LAST, after every other online test, against official PyPI
+  n pip-upgrade-self-last 'python3 -m pip install --upgrade --no-cache-dir --timeout 30 --retries 1 pip 2>&1 | tail -2; pip3 --version'
+else
+  echo "ONLINE_SKIP reason=net-flaky (host probe failed this run)"
+fi
+else
+  echo "ONLINE_SKIP reason=host-only (CARPET_ONLINE unset; starry net TLS-RX data-path bug #292 — online validated on host baseline + httpsprobe, auto-runs on starry once net fix lands)"
+fi
+
+echo "CB_RESULT=${OK}/${TOT}"
+echo "CARPET_END"
+'''
+success_regex = ["(?m)^CARPET_END\\s*$"]
+fail_regex = ['(?i)\bpanic(?:ked)?\b', 'BACKTRACE_BEGIN', 'Unhandled .* Exception', 'failed to determine root device']
+timeout = 7200

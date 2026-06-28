@@ -1,0 +1,15 @@
+ALU op=0 a=200 b=100 y=44 carry=1
+ALU op=1 a=50 b=20 y=30 carry=0
+ALU op=2 a=240 b=15 y=0 carry=0
+ALU op=3 a=240 b=15 y=255 carry=0
+ALU op=4 a=170 b=255 y=85 carry=0
+ALU op=5 a=129 b=0 y=2 carry=0
+ALU op=6 a=129 b=0 y=64 carry=0
+ALU op=7 a=15 b=0 y=240 carry=0
+COUNT=8
+FSM cycle=0 state=0
+FSM cycle=1 state=1
+FSM cycle=2 state=2
+FSM cycle=3 state=3
+FSM cycle=4 state=0
+VERILOG_SIM_OK

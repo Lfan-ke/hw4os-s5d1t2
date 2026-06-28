@@ -1,0 +1,50 @@
+# Neo4j Community 2026.04.0 — embedded graph-DB kernel smoke on StarryOS x86_64.
+# #764 big-app "neo4j". neo4j-community is a PURE Java distribution (235 arch-independent
+# jars); the per-arch coverage comes from the musl JDK. Its core jars are class-major 65
+# (Java 21), so this case targets /opt/jdk21 (musl) in the jdk-multi base image —
+# OpenJDK17 hard-fails with UnsupportedClassVersionError and neo4j's own launcher refuses
+# anything below Java 21. prep-neo4j-rootfs.sh injects lib/*.jar + Neo4jEmbeddedSmoke.class.
+#
+# We run the REAL graph-DB kernel embedded in one JVM via DatabaseManagementServiceBuilder
+# (NOT the heavy `neo4j console` HTTP server) — the same kernel the server wraps: page
+# cache + record/token stores + the transaction log (WAL) + the Cypher parser/planner/
+# runtime. 5 assertions: (1) kernel version 2026.04.0; (2) default DB available;
+# (3) Cypher write then read, name round-trips; (4) integer property n=42 round-trips;
+# (5) Cypher count(p)=1. DoD = all 5 pass (gate anchors ^NEO4J_OK=1, printed only by the
+# shell after independently confirming the driver's pass=5 total=5).
+#
+# Backing on the mmap-EOF kernel fix (rcore-os/tgoskits#1164): neo4j's page cache mmaps
+# the store files; without the EOF bound an oversized mapping over small store files
+# exhausts RAM. -Xint: starry JIT instability (#206). -m 4096M + -Xmx768m: neo4j kernel
+# is heavier than the jar-library cases.
+args = [
+    "-nographic", "-m", "4096M", "-smp", "1",
+    "-device", "virtio-blk-pci,drive=disk0",
+    "-drive", "id=disk0,if=none,format=raw,file=${workspace}/tmp/axbuild/rootfs/rootfs-x86_64-neo4j.img",
+    "-device", "virtio-net-pci,netdev=net0", "-netdev", "user,id=net0",
+]
+uefi = false
+to_bin = false
+shell_prefix = "root@starry:/root #"
+shell_init_cmd = '''
+export JAVA_HOME=/opt/jdk21
+printf '/lib\n/usr/lib\n%s/lib\n%s/lib/server\n' "$JAVA_HOME" "$JAVA_HOME" > /etc/ld-musl-x86_64.path
+export HOME=/root
+NEO=/opt/neo4j
+# Run the host-precompiled embedded smoke. It emits "OK/FAIL ..." per assertion and a
+# final "NEO4J_RESULT pass=.. total=..", but NEVER the success token (anti-false-positive:
+# NEO4J_OK is printed ONLY by the gate below, and only when the driver reported 5/5).
+$JAVA_HOME/bin/java -Xint -Xms64m -Xmx768m \
+  -cp "$NEO/lib/*:$NEO" \
+  Neo4jEmbeddedSmoke > /tmp/neo4j.out 2>&1
+cat /tmp/neo4j.out
+# Aggregate gate: emit success token ONLY when the driver's own line confirms pass=5 total=5.
+RES=$(grep '^NEO4J_RESULT' /tmp/neo4j.out | tail -1)
+P=$(echo "$RES" | sed -E 's/.*pass=([0-9]+).*/\1/'); T=$(echo "$RES" | sed -E 's/.*total=([0-9]+).*/\1/')
+V=0; [ -n "$T" ] && [ "$P" = "$T" ] && [ "$T" -ge 11 ] && V=1
+printf 'NEO4J_OK=%s\n' "$V"
+echo "NEO4J_DONE"
+'''
+success_regex = ["(?m)^NEO4J_OK=1"]
+fail_regex = ['(?i)\bpanic(?:ked)?\b']
+timeout = 3000

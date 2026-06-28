@@ -1,0 +1,45 @@
+# hw4os-s5d1t2 — 方案二 StarryOS Linux-app 适配交付仓库
+#
+# 忽略所有以 . 开头的隐藏文件/文件夹,
+# 但保留 .git* 特殊文件(.gitignore / .gitattributes / .github 等)。
+.*
+!.git*
+
+# 临时 / 编辑器 / OS 产物
+*.tmp
+*.swp
+*~
+__pycache__/
+*.py[codz]
+*.orig
+*.rej
+
+# ── 可重新下载的上游资源:不随仓库提交 ──
+# 为控制体积, 可重新下载的上游资源由各 app 的 fetch-resources.sh 按 SOURCES.md
+# 的来源与 sha256 重新获取(见根 README「资源获取」); 本忽略表防止本地 fetch 后误提交。
+# 仓库仍随附的大文件 = 自建/难复现二进制(consul rv/loong、HDL testbin、SystemC .a、
+# JNI .so、测例 demo jar), 经 Git LFS 跟踪(见 .gitattributes), 不在此忽略。
+
+# 压缩包 / 软件包
+*.tar.gz
+*.tgz
+*.tar.xz
+*.tar.bz2
+*.zip
+*.apk
+*.whl
+*.deb
+
+# 官方发布的二进制(由 fetch-resources.sh 下载)
+go/minio/bins/*/minio
+monitor/prometheus/case/bins/node_exporter/*/node_exporter
+monitor/prometheus/case/bins/prometheus/
+
+# 上游 jar(经 maven / fetch-resources.sh 重新解析)
+java/bigapps/iceberg/iceberg-spark-runtime-*.jar
+java/bigapps/paimon/paimon-flink-*.jar
+java/java-tail/trino/package/target/trino-libs/
+java/java-tail/trino/package/trino-cli-*-executable.jar
+
+# 滚动的 Alpine 包索引(可重新生成)
+**/meta-apkindex/**/APKINDEX-*

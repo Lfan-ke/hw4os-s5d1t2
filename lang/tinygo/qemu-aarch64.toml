@@ -1,0 +1,30 @@
+# TinyGo (LLVM-based Go) on StarryOS (#764 "tinygo"). Static aarch64 binary from a
+# comprehensive Go test (goroutines/channels/select/atomic/generics/closures/defer).
+# DoD = runs + stdout EXACT-matches host golden. (x86_64 default=dynamic-glibc; riscv64/
+# loong64 unsupported by TinyGo upstream — see lang/LANG-4ARCH-ANALYSIS.md.)
+args = [
+    "-cpu", "cortex-a72",
+    "-nographic", "-m", "2048M", "-smp", "1",
+    "-device", "virtio-blk-pci,drive=disk0",
+    "-drive", "id=disk0,if=none,format=raw,file=${workspace}/tmp/axbuild/rootfs/rootfs-aarch64-tinygo.img",
+    "-device", "virtio-net-pci,netdev=net0", "-netdev", "user,id=net0",
+]
+uefi = false
+to_bin = false
+shell_prefix = "root@starry:/root #"
+shell_init_cmd = '''
+PASS=0; TOTAL=0
+acc() { TOTAL=$((TOTAL+1)); if [ "$1" = 1 ]; then PASS=$((PASS+1)); echo "OK   $2"; else echo "FAIL $2"; fi; }
+echo "=== TinyGo (LLVM Go) aarch64 static on StarryOS ==="
+/usr/local/bin/tinygotest > /tmp/raw.txt 2>/tmp/got.err
+grep -E '^CONC_SUM=|^ATOMIC=|^GEN_|^SELECT=|^AREAS=|^FREQ=|^CLOSURE=|^DEFER=|^TINYGO_OK$' /tmp/raw.txt > /tmp/got.txt
+grep -q '^TINYGO_OK$' /tmp/got.txt && acc 1 "tinygo ran to completion" || { acc 0 "completion"; tail -6 /tmp/got.err; }
+if cmp -s /tmp/got.txt /root/tinygo-golden.txt; then acc 1 "stdout EXACT-match golden"; else acc 0 "MISMATCH"; diff /root/tinygo-golden.txt /tmp/got.txt|head; fi
+echo "TINYGO_RESULT pass=$PASS total=$TOTAL"
+V=0; [ "$PASS" = "$TOTAL" ] && [ "$TOTAL" = "2" ] && V=1
+printf 'TINYGO_OK_GATE=%s\n' "$V"
+echo "TINYGO_DONE"
+'''
+success_regex = ["(?m)^TINYGO_OK_GATE=1"]
+fail_regex = ['(?i)\bpanic(?:ked)?\b']
+timeout = 600

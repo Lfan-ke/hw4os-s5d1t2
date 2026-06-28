@@ -1,0 +1,23 @@
+=== JDK17 features ===
+JDK17_OK printed
+=== JDK21 features ===
+JDK21_OK printed
+=== JDK23 features (preview) ===
+JDK23_OK printed
+=== JDK25 features (preview) ===
+JDK25_OK printed
+JDK25 compact-headers run OK
+=== version switch (update-alternatives-style JAVA_HOME + symlink) ===
+  switch->17 : openjdk version "17.0.18" 2026-01-20
+  switch->21 : openjdk version "21.0.10" 2026-01-20
+  switch->23 : openjdk version "23.0.2" 2025-01-21
+  switch->25 : openjdk version "25" 2025-09-16 LTS
+SWITCH ok=4/4
+=== sdkman-style candidate switch (offline, pre-seeded) ===
+  sdk-use 17 : openjdk version "17.0.18" 2026-01-20
+  sdk-use 21 : openjdk version "21.0.10" 2026-01-20
+  sdk-use 23 : openjdk version "23.0.2" 2025-01-21
+  sdk-use 25 : openjdk version "25" 2025-09-16 LTS
+SDK-SWITCH ok=4/4
+AGGREGATE: PASS=7 TOTAL=7
+JDK_MULTI_OK=1

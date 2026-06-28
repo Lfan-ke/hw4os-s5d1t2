@@ -1,0 +1,147 @@
+args = [
+    "-nographic", "-m", "2048M", "-cpu", "rv64", "-smp", "1",
+    "-device", "virtio-blk-pci,drive=disk0",
+    "-drive", "id=disk0,if=none,format=raw,file=${workspace}/tmp/axbuild/rootfs/rootfs-riscv64-prometheus.img",
+    "-device", "virtio-net-pci,netdev=net0", "-netdev", "user,id=net0",
+]
+uefi = false
+to_bin = true
+shell_prefix = "root@starry:/root #"
+shell_init_cmd = '''
+# === prometheus 3.11.3 headless server + PromQL/API correctness on StarryOS riscv64 ===
+# (#764 monitor sub-课题 "p8s" (#246))
+# `prometheus` is a FULLY STATIC, CGO-disabled Go binary (file: "statically linked",
+# tags=netgo,builtinassets => web UI embedded) injected at /usr/local/bin by
+# prep-prometheus-rootfs.sh -- no libc/ld-musl wiring needed. Alongside it we inject
+# `node_exporter` 1.11.1 (the simplest exporter -- a single CGO-free static Go binary
+# exposing host metrics at :9100/metrics) at /usr/bin. We launch node_exporter first as
+# a REAL scrape target, then the prometheus server headless on loopback :9090 with a
+# writable TSDB under /tmp and a scrape_config job `node` -> 127.0.0.1:9100, then
+# exercise the REAL web/API path + the core scrape->ingest->query pipeline with wget:
+#   /-/ready    -> "Prometheus Server is Ready."        (HTTP serving + TSDB up)
+#   /api/v1/query?query=vector(42) -> {"status":"success",...,"42"]}  (PromQL engine)
+#   /api/v1/query?query=up{job="node"} -> value "1"     (node_exporter scraped+ingested)
+# This drives the Go runtime (M:N scheduler, concurrent GC, futex parking, getrandom),
+# the TSDB head/WAL on the ext4 image, and the net stack (socket/bind/listen/accept +
+# the scrape client connecting loopback :9090 -> :9100). The version token + the API
+# round-trips + the live scrape gate the case.
+#
+# Four assertions, PASS/TOTAL acc() gate (NO silent pass):
+#   VER_OK    -- prometheus --version reports EXACTLY 3.11.3 (red-line; wrong version = invalid test).
+#   READY_OK  -- log emits "Server is ready to receive web requests." AND /-/ready answers "Ready".
+#   QUERY_OK  -- /api/v1/query evaluates vector(42) and returns the value "42" (PromQL round-trip).
+#   SCRAPE_OK -- /api/v1/query up{job="node"} returns value "1" (node_exporter scraped successfully).
+# VERSION RED-LINE: all 4 arches ship 3.11.3 (official amd64/arm64/riscv64 + self-cross-
+# compiled loong64 per monitor-bins/SOURCES.md §1; node_exporter 1.11.1 per §2b). A
+# mismatch FAILS the gate.
+export PATH=/usr/local/bin:/usr/bin:/bin:/sbin:/usr/sbin
+export HOME=/root
+PROM=/usr/local/bin/prometheus
+NODE_EXP=/usr/bin/node_exporter
+CFG=/etc/prometheus.yml
+TSDB=/tmp/prom
+EP=127.0.0.1:9090
+NE_EP=127.0.0.1:9100
+rm -rf "$TSDB"; mkdir -p "$TSDB"
+
+PASS=0; TOTAL=0
+acc() { TOTAL=$((TOTAL+1)); if [ "$1" = 1 ]; then PASS=$((PASS+1)); echo "  [PASS] $2"; else echo "  [FAIL] $2"; fi; }
+
+# --- VER_OK: assert the EXACT version 3.11.3 (red-line) ---
+echo "=== prometheus --version ==="
+$PROM --version > /tmp/prom.ver 2>&1
+cat /tmp/prom.ver
+VER_OK=0
+if grep -qE '^prometheus, version 3\.11\.3 ' /tmp/prom.ver; then VER_OK=1; else echo "  VERSION MISMATCH (want 3.11.3)"; fi
+acc "$VER_OK" "prometheus --version == 3.11.3"
+
+# --- launch node_exporter (the scrape target) headless on loopback :9100 ---
+# Minimal collector set (disable-defaults + only `uname`) => fast/deterministic under
+# TCG; /metrics still serves a scrapeable target regardless of which collectors are on.
+"$NODE_EXP" --web.listen-address="$NE_EP" \
+            --collector.disable-defaults --collector.uname > /tmp/ne.log 2>&1 &
+NEPID=$!
+echo "  node_exporter launched pid=$NEPID"
+# wait until /metrics returns data before starting prometheus (retry loop)
+NE_UP=0; i=0
+while [ "$i" -lt 30 ]; do
+  if wget -q -T 3 -O /tmp/ne.metrics "http://$NE_EP/metrics" 2>/dev/null; then
+    [ -s /tmp/ne.metrics ] && { NE_UP=1; break; }
+  fi
+  kill -0 "$NEPID" 2>/dev/null || { echo "  node_exporter exited before serving"; break; }
+  i=$((i+1)); sleep 1
+done
+echo "  node_exporter /metrics serving: NE_UP=$NE_UP ($(wc -l < /tmp/ne.metrics 2>/dev/null) lines)"
+
+# --- launch the server headless on loopback :9090 ---
+$PROM --config.file="$CFG" \
+      --web.listen-address="$EP" \
+      --storage.tsdb.path="$TSDB" \
+      --web.enable-lifecycle > /tmp/prom.log 2>&1 &
+PPID_=$!
+echo "  prometheus launched pid=$PPID_"
+
+# --- wait for readiness: log token first, then poll /-/ready over HTTP ---
+READY_OK=0; i=0
+while [ "$i" -lt 240 ]; do
+  if grep -q 'Server is ready to receive web requests' /tmp/prom.log 2>/dev/null; then
+    if wget -q -T 3 -O /tmp/ready.out "http://$EP/-/ready" 2>/dev/null; then
+      grep -qi 'Ready' /tmp/ready.out && { READY_OK=1; break; }
+    fi
+  fi
+  kill -0 "$PPID_" 2>/dev/null || { echo "  prometheus exited before serving"; break; }
+  i=$((i+1)); sleep 1
+done
+echo "  /-/ready: [$(cat /tmp/ready.out 2>/dev/null)]"
+acc "$READY_OK" "log 'Server is ready' + /-/ready answers Ready"
+
+# --- QUERY_OK: PromQL engine round-trips a known scalar through /api/v1/query ---
+QUERY_OK=0
+if [ "$READY_OK" = 1 ]; then
+  wget -q -T 5 -O /tmp/q.out "http://$EP/api/v1/query?query=vector(42)" 2>/dev/null
+  echo "  query: [$(cat /tmp/q.out 2>/dev/null)]"
+  if grep -q '"status":"success"' /tmp/q.out 2>/dev/null && grep -q '"42"' /tmp/q.out 2>/dev/null; then
+    QUERY_OK=1
+  else
+    echo "  QUERY MISMATCH (want status=success + value 42)"
+  fi
+else
+  echo "=== prom.log tail (look for socket/bind/futex/getrandom/mmap errors) ==="
+  tail -30 /tmp/prom.log 2>/dev/null
+fi
+acc "$QUERY_OK" "/api/v1/query vector(42) -> 42"
+
+# --- SCRAPE_OK: prometheus scraped node_exporter -> up{job="node"} == 1 ---
+# Poll for up to ~90s: the first scrape (scrape_interval 1s) + ingestion can lag under
+# TCG. We only require up==1 (target reachable + scrape succeeded), NOT any specific
+# node metric -- most robust, independent of which collectors exist.
+SCRAPE_OK=0
+if [ "$READY_OK" = 1 ] && [ "$NE_UP" = 1 ]; then
+  i=0
+  while [ "$i" -lt 240 ]; do
+    wget -q -T 10 -O /tmp/up.out 'http://'"$EP"'/api/v1/query?query=up%7Bjob%3D%22node%22%7D' 2>/dev/null
+    if grep -q '"status":"success"' /tmp/up.out 2>/dev/null && grep -q '"1"]' /tmp/up.out 2>/dev/null; then
+      SCRAPE_OK=1; break
+    fi
+    i=$((i+1)); sleep 1
+  done
+  echo "  up{job=node}: [$(cat /tmp/up.out 2>/dev/null)]"
+  [ "$SCRAPE_OK" = 1 ] || echo "  SCRAPE MISMATCH (want up{job=node}==1; node_exporter not scraped/ingested)"
+else
+  echo "  SCRAPE skipped (prometheus not ready or node_exporter never served)"
+fi
+acc "$SCRAPE_OK" "up{job=node}==1 (node_exporter scraped+ingested)"
+
+# --- stop both servers ---
+kill "$PPID_" 2>/dev/null
+kill -9 "$PPID_" 2>/dev/null
+kill "$NEPID" 2>/dev/null
+kill -9 "$NEPID" 2>/dev/null
+
+echo "PROM_RESULT pass=$PASS total=$TOTAL"
+if [ "$PASS" = "$TOTAL" ] && [ "$TOTAL" -gt 0 ]; then V=1; else V=0; fi; printf 'PROM_OK=%s\n' "$V"
+echo "PROM_DONE"
+'''
+success_regex = ["(?m)^PROM_OK=1"]
+fail_regex = ['(?i)\bpanic(?:ked)?\b']
+timeout = 3000

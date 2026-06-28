@@ -1,0 +1,6 @@
+  make: building alpha
+  make: building beta
+  make: building gamma
+MAKE_NAMES=3
+MAKE_SORTED=alpha beta gamma
+GNUMAKE_BUILD_OK

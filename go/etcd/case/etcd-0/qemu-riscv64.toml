@@ -1,0 +1,99 @@
+args = [
+    "-nographic", "-m", "4096M", "-cpu", "rv64", "-smp", "1",
+    "-device", "virtio-blk-pci,drive=disk0",
+    "-drive", "id=disk0,if=none,format=raw,file=${workspace}/tmp/axbuild/rootfs/rootfs-riscv64-etcd.img",
+    "-device", "virtio-net-pci,netdev=net0", "-netdev", "user,id=net0",
+]
+uefi = false
+to_bin = true
+shell_prefix = "root@starry:/root #"
+shell_init_cmd = '''
+# === etcd 3.6.11 single-node KV correctness on StarryOS riscv64 (#764 "etcd") ===
+# etcd + etcdctl are FULLY STATIC, CGO-disabled Go binaries injected at /usr/bin by
+# prep-etcd-rootfs.sh -- no libc/ld-musl wiring needed. We launch a single-node etcd
+# bound to loopback (no cluster), then exercise the real client RPC path:
+#   etcdctl put k v  ->  etcdctl get k   (value must round-trip byte-exactly)
+# This drives etcd's Go runtime (M:N scheduler, concurrent GC, futex parking) plus
+# the bbolt-backed MVCC store and the gRPC-over-loopback client/server path. Entropy
+# comes from getrandom(2) (no /dev/urandom node needed); loopback works in-guest.
+#
+# VERSION RED-LINE: etcd --version must report 3.6.11 (all 4 arches ship 3.6.11 --
+# official amd64/arm64 + self-cross-compiled riscv64/loong64). A version mismatch
+# FAILS the gate (a wrong-version binary is an invalid test).
+export PATH=/usr/bin:/bin:/sbin:/usr/sbin
+export HOME=/root
+# etcd writes its WAL/snap/db under --data-dir. Use /root (ext4, bounded LRU page
+# cache), NOT /tmp (tmpfs, unbounded): bbolt mmaps the db with a huge InitialMmapSize.
+# NOTE: do not also export ETCD_DATA_DIR -- etcd v3.6 treats an env var shadowed by
+# the corresponding --data-dir flag as fatal ("conflicting environment variable").
+export ETCDCTL_API=3
+# etcd only "officially" supports amd64/arm64; on riscv64 it refuses to start unless
+# ETCD_UNSUPPORTED_ARCH is set to the GOARCH. The binary itself works -- this is etcd's
+# own tier-1 gate, not a kernel limitation.
+export ETCD_UNSUPPORTED_ARCH=riscv64
+DATA_DIR=/root/etcd.d
+rm -rf "$DATA_DIR"; mkdir -p "$DATA_DIR"
+ETCD=/usr/bin/etcd
+ETCDCTL=/usr/bin/etcdctl
+EP=127.0.0.1:2379
+VER_OK=0; KV_OK=0
+
+# --- VER_OK: assert the EXACT version 3.6.11 (red-line) ---
+echo "=== etcd --version ==="
+$ETCD --version > /tmp/etcd.ver 2>&1
+cat /tmp/etcd.ver
+if grep -qE '^etcd Version: 3\.6\.11$' /tmp/etcd.ver; then VER_OK=1; else echo "  VERSION MISMATCH (want 3.6.11)"; fi
+
+# --- launch single-node etcd in the background, bound to loopback ---
+# --listen-client-urls / --advertise-client-urls on 127.0.0.1:2379 (client RPC).
+# --listen-peer-urls on 127.0.0.1:2380 (no real peers; single node).
+# --force-new-cluster keeps it a clean 1-member cluster every run.
+$ETCD \
+  --name s1 \
+  --data-dir "$DATA_DIR" \
+  --listen-client-urls "http://$EP" \
+  --advertise-client-urls "http://$EP" \
+  --listen-peer-urls "http://127.0.0.1:2380" \
+  --initial-advertise-peer-urls "http://127.0.0.1:2380" \
+  --initial-cluster "s1=http://127.0.0.1:2380" \
+  --initial-cluster-state new \
+  --force-new-cluster \
+  --log-level warn > /tmp/etcd.log 2>&1 &
+EPID=$!
+echo "  etcd launched pid=$EPID"
+
+# --- wait for the client endpoint to come up (retry endpoint health) ---
+up=0; i=0
+while [ "$i" -lt 60 ]; do
+  if $ETCDCTL --endpoints="$EP" --command-timeout=2s endpoint health >/tmp/eh.out 2>&1; then
+    grep -q 'is healthy' /tmp/eh.out && { up=1; break; }
+  fi
+  kill -0 "$EPID" 2>/dev/null || { echo "  etcd exited before serving"; break; }
+  i=$((i+1)); sleep 1
+done
+
+if [ "$up" = 1 ]; then
+  echo "  endpoint healthy"
+  # --- KV_OK: put then get -> value must round-trip exactly ---
+  $ETCDCTL --endpoints="$EP" put starry/key "ETCD_VALUE_42" >/tmp/put.out 2>&1
+  echo "  put: $(cat /tmp/put.out)"
+  GOT=$($ETCDCTL --endpoints="$EP" get starry/key --print-value-only 2>/tmp/get.err)
+  echo "  get: [$GOT]"
+  if [ "$GOT" = "ETCD_VALUE_42" ]; then KV_OK=1; else echo "  KV ROUND-TRIP MISMATCH"; tail -3 /tmp/get.err; fi
+else
+  echo "  etcd did not become healthy on $EP"
+  echo "=== etcd.log (look for socket/bind/futex/getrandom/mmap errors) ==="
+  tail -30 /tmp/etcd.log 2>/dev/null
+fi
+
+# --- stop etcd ---
+kill "$EPID" 2>/dev/null
+kill -9 "$EPID" 2>/dev/null
+
+echo "RESULTS: VER_OK=$VER_OK KV_OK=$KV_OK"
+if [ "$VER_OK" = 1 ] && [ "$KV_OK" = 1 ]; then V=1; else V=0; fi; printf 'ETCD_OK=%s\n' "$V"
+echo "ETCD_DONE"
+'''
+success_regex = ["(?m)^ETCD_OK=1"]
+fail_regex = ['(?i)\bpanic(?:ked)?\b']
+timeout = 1200

@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>org.starry.dod</groupId><artifactId>wildfly-demo</artifactId><version>1.0.0</version><packaging>jar</packaging>
+  <properties>
+    <maven.compiler.release>17</maven.compiler.release>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <!-- WildFly 31 ships RESTEasy 6.2 (Jakarta EE 10, jakarta.* namespace, baseline Java 17). -->
+    <resteasy.version>6.2.9.Final</resteasy.version>
+    <undertow.version>2.3.18.Final</undertow.version>
+  </properties>
+  <dependencies>
+    <!-- RESTEasy = the JAX-RS implementation the WildFly app server ships (org.jboss.resteasy). -->
+    <dependency><groupId>org.jboss.resteasy</groupId><artifactId>resteasy-core</artifactId><version>${resteasy.version}</version></dependency>
+    <dependency><groupId>org.jboss.resteasy</groupId><artifactId>resteasy-undertow</artifactId><version>${resteasy.version}</version></dependency>
+    <!-- Undertow Servlet container = the WildFly web subsystem. -->
+    <dependency><groupId>io.undertow</groupId><artifactId>undertow-core</artifactId><version>${undertow.version}</version></dependency>
+    <dependency><groupId>io.undertow</groupId><artifactId>undertow-servlet</artifactId><version>${undertow.version}</version></dependency>
+  </dependencies>
+  <build><finalName>wildfly-demo</finalName><plugins>
+    <plugin><groupId>org.apache.maven.plugins</groupId><artifactId>maven-compiler-plugin</artifactId><version>3.11.0</version><configuration><release>17</release></configuration></plugin>
+    <plugin><groupId>org.apache.maven.plugins</groupId><artifactId>maven-shade-plugin</artifactId><version>3.5.1</version>
+      <executions><execution><phase>package</phase><goals><goal>shade</goal></goals>
+        <configuration><transformers>
+          <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer"><mainClass>org.starry.dod.WildflyDemo</mainClass></transformer>
+          <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
+        </transformers></configuration>
+      </execution></executions>
+    </plugin>
+  </plugins></build>
+</project>

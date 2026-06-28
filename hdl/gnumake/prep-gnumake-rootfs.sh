@@ -1,0 +1,46 @@
+#!/bin/bash
+# prep-gnumake-rootfs.sh — build rootfs-<arch>-gnumake.img for the `gnumake-0`
+# StarryOS stress case (#764 "verilog <!-- verilator, iverilog, gnumake -->").
+#
+# Injects a STATIC, musl-cross-built GNU Make 4.4.1 (./configure --host=<arch>-linux-musl
+# LDFLAGS=-static) + a feature-exercising Makefile + the host golden. Validates that
+# real GNU Make RUNS on StarryOS (4 arch): parses a makefile, evaluates make functions/
+# variables/pattern-rules, and FORKS /bin/sh in the rootfs to execute recipes — output
+# must EXACT-match the host golden. Debugfs-only injection. Usage: bash prep-... <arch>
+set -e
+ARCH="${1:-x86_64}"
+# Portable layout (offline-reproducible delivery): TGOSKITS_ROOT points at the maintainer's
+# tgoskits checkout (rootfs imgs under tmp/axbuild/rootfs/); materials ship alongside this script.
+ROOT="${TGOSKITS_ROOT:?set TGOSKITS_ROOT to your tgoskits checkout, e.g. export TGOSKITS_ROOT=\$HOME/tgoskits}"
+HERE="$(cd "$(dirname "$0")" && pwd)"
+DL="$HERE"
+BASE=$ROOT/tmp/axbuild/rootfs/rootfs-$ARCH-alpine.img
+IMG=$ROOT/tmp/axbuild/rootfs/rootfs-$ARCH-gnumake.img
+STAGE=/tmp/gnumake-stage-$ARCH
+BIN=$DL/testbin/make-$ARCH
+
+[ -f "$BASE" ] || { echo "missing base $BASE"; exit 2; }
+[ -f "$BIN" ]  || { echo "missing $BIN"; exit 2; }
+command -v debugfs >/dev/null 2>&1 || { echo "need debugfs"; exit 2; }
+
+echo "=== [$ARCH] stage make ($(du -h "$BIN" | cut -f1), static) + Makefile + golden ==="
+rm -rf "$STAGE"; mkdir -p "$STAGE/usr/local/bin" "$STAGE/root"
+cp "$BIN" "$STAGE/usr/local/bin/make"; chmod 0755 "$STAGE/usr/local/bin/make"
+cp "$DL/Makefile"   "$STAGE/root/Makefile"
+cp "$DL/golden.txt" "$STAGE/root/gnumake-golden.txt"
+file "$STAGE/usr/local/bin/make" | sed 's/,.*statically/  [static]/'
+
+echo "=== [$ARCH] copy base -> $IMG (grow to 2G, never shrink) ==="
+cp -f "$BASE" "$IMG"
+cur=$(stat -c %s "$IMG"); [ "$cur" -lt $((2*1024*1024*1024)) ] && truncate -s 2G "$IMG"
+e2fsck -f -y "$IMG" >/dev/null 2>&1 || true
+resize2fs "$IMG" >/dev/null 2>&1 || true
+
+echo "=== [$ARCH] inject via debugfs -w ==="
+DBG=/tmp/gnumake-debugfs-$ARCH.cmds; : > "$DBG"
+( cd "$STAGE" && find . -type d | sort ) | while read -r d; do rel="${d#./}"; [ -n "$rel" ] && [ "$rel" != "." ] && echo "mkdir /$rel" >> "$DBG"; done
+( cd "$STAGE" && find . -type f | sort ) | while read -r f; do rel="${f#./}"; echo "rm /$rel" >> "$DBG"; echo "write $STAGE/$rel /$rel" >> "$DBG"; done
+debugfs -w -f "$DBG" "$IMG" >/tmp/gnumake-debugfs-$ARCH.log 2>&1
+grep -iE 'error|cannot|fail' /tmp/gnumake-debugfs-$ARCH.log | grep -viE 'File not found.*rm|rm:.*not found|File exists.*mkdir' | head
+e2fsck -f -y "$IMG" >/dev/null 2>&1 || true
+echo "[$ARCH] DONE -> $IMG"

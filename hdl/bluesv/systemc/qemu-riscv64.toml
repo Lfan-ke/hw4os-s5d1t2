@@ -1,0 +1,29 @@
+# SystemC 2.3.4 (static musl, cross-built, SC_USE_PTHREADS) on StarryOS (#764 bluesv
+# "system c" half). sc_sim = a SystemC testbench (sc_module/sc_clock/SC_METHOD+SC_THREAD/
+# sc_signal/wait/sc_start) linked vs static libsystemc; the discrete-event kernel must
+# run to completion AND stdout EXACT-match the host golden (SC count=0..7 + SYSTEMC_OK).
+args = [
+    "-nographic", "-m", "2048M", "-smp", "1",
+    "-device", "virtio-blk-pci,drive=disk0",
+    "-drive", "id=disk0,if=none,format=raw,file=${workspace}/tmp/axbuild/rootfs/rootfs-riscv64-systemc.img",
+    "-device", "virtio-net-pci,netdev=net0", "-netdev", "user,id=net0",
+]
+uefi = false
+to_bin = false
+shell_prefix = "root@starry:/root #"
+shell_init_cmd = '''
+PASS=0; TOTAL=0
+acc() { TOTAL=$((TOTAL+1)); if [ "$1" = 1 ]; then PASS=$((PASS+1)); echo "OK   $2"; else echo "FAIL $2"; fi; }
+echo "=== SystemC 2.3.4 (static musl, SC_USE_PTHREADS) discrete-event kernel ==="
+/usr/local/bin/sc_sim > /tmp/raw.txt 2>/tmp/got.err
+grep -E '^SC count=|^SYSTEMC_OK$' /tmp/raw.txt > /tmp/got.txt
+grep -q '^SYSTEMC_OK$' /tmp/got.txt && acc 1 "SystemC sim ran to completion" || { acc 0 "sc completion"; echo "  stderr:"; tail -6 /tmp/got.err; echo "  raw:"; tail -8 /tmp/raw.txt; }
+if cmp -s /tmp/got.txt /root/sc-golden.txt; then acc 1 "stdout EXACT-match golden"; else acc 0 "stdout MISMATCH"; diff /root/sc-golden.txt /tmp/got.txt | head; fi
+echo "SYSTEMC_RESULT pass=$PASS total=$TOTAL"
+V=0; [ "$PASS" = "$TOTAL" ] && [ "$TOTAL" = "2" ] && V=1
+printf 'SYSTEMC_OK_GATE=%s\n' "$V"
+echo "SYSTEMC_DONE"
+'''
+success_regex = ["(?m)^SYSTEMC_OK_GATE=1"]
+fail_regex = ['(?i)\bpanic(?:ked)?\b']
+timeout = 600

@@ -1,0 +1,30 @@
+# LLVM 22.1.6 (clang-22) codegen on StarryOS (#764 "llvm22"). A comprehensive C++23
+# program (ranges/concepts/consteval/variant/bit/optional) cross-compiled by clang-22
+# to a static musl binary; DoD = runs to completion AND stdout EXACT-matches the host
+# clang-22 golden. clang's single backend emits all 4 arches (the "4x4" of LLVM).
+args = [
+    "-cpu", "cortex-a72",
+    "-nographic", "-m", "2048M", "-smp", "1",
+    "-device", "virtio-blk-pci,drive=disk0",
+    "-drive", "id=disk0,if=none,format=raw,file=${workspace}/tmp/axbuild/rootfs/rootfs-aarch64-llvm22.img",
+    "-device", "virtio-net-pci,netdev=net0", "-netdev", "user,id=net0",
+]
+uefi = false
+to_bin = false
+shell_prefix = "root@starry:/root #"
+shell_init_cmd = '''
+PASS=0; TOTAL=0
+acc() { TOTAL=$((TOTAL+1)); if [ "$1" = 1 ]; then PASS=$((PASS+1)); echo "OK   $2"; else echo "FAIL $2"; fi; }
+echo "=== LLVM 22.1.6 (clang-22) C++23 codegen on StarryOS ==="
+/usr/local/bin/llvm22test > /tmp/raw.txt 2>/tmp/got.err
+grep -E '^RANGES_SUM=|^SPAN_SUM=|^FIB15=|^POPCOUNT=|^BITWIDTH=|^ROTL=|^VARIANT=|^OPTIONAL=|^UNIQUE=|^DIVMOD=|^LLVM22_OK$' /tmp/raw.txt > /tmp/got.txt
+grep -q '^LLVM22_OK$' /tmp/got.txt && acc 1 "llvm22 ran to completion" || { acc 0 "completion"; tail -6 /tmp/got.err; }
+if cmp -s /tmp/got.txt /root/llvm22-golden.txt; then acc 1 "stdout EXACT-match golden"; else acc 0 "MISMATCH"; diff /root/llvm22-golden.txt /tmp/got.txt | head; fi
+echo "LLVM22_RESULT pass=$PASS total=$TOTAL"
+V=0; [ "$PASS" = "$TOTAL" ] && [ "$TOTAL" = "2" ] && V=1
+printf 'LLVM22_OK_GATE=%s\n' "$V"
+echo "LLVM22_DONE"
+'''
+success_regex = ["(?m)^LLVM22_OK_GATE=1"]
+fail_regex = ['(?i)\bpanic(?:ked)?\b']
+timeout = 600

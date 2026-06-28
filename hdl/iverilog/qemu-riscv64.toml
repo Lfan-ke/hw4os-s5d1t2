@@ -1,0 +1,32 @@
+# Icarus Verilog (vvp) running a pre-compiled design on StarryOS (#764 "verilog
+# <!-- verilator, iverilog, gnumake -->"). vvp = the Icarus Verilog v12_0 runtime,
+# cross-compiled with the musl toolchain (fully static) WITH its system VPI module
+# ($display/$finish/$time/...) linked in directly (static musl can't dlopen). It
+# interprets /root/dut.vvp (host `iverilog -g2012 tb.v dut.v`; the shared simple
+# design dut.v + testbench tb.v are ALSO verilator-validated to the same golden).
+# DoD = vvp runs to completion AND stdout EXACT-matches the host golden.
+args = [
+    "-nographic", "-m", "2048M", "-smp", "1",
+    "-device", "virtio-blk-pci,drive=disk0",
+    "-drive", "id=disk0,if=none,format=raw,file=${workspace}/tmp/axbuild/rootfs/rootfs-riscv64-iverilog.img",
+    "-device", "virtio-net-pci,netdev=net0", "-netdev", "user,id=net0",
+]
+uefi = false
+to_bin = false
+shell_prefix = "root@starry:/root #"
+shell_init_cmd = '''
+PASS=0; TOTAL=0
+acc() { TOTAL=$((TOTAL+1)); if [ "$1" = 1 ]; then PASS=$((PASS+1)); echo "OK   $2"; else echo "FAIL $2"; fi; }
+echo "=== Icarus Verilog (vvp v12_0, static musl, embedded system VPI) ==="
+/usr/local/bin/vvp /root/dut.vvp > /tmp/raw.txt 2>/tmp/got.err
+grep -E '^ALU |^COUNT=|^FSM |^VERILOG_SIM_OK' /tmp/raw.txt > /tmp/got.txt
+grep -q '^VERILOG_SIM_OK$' /tmp/got.txt && acc 1 "vvp ran to completion" || { acc 0 "vvp completion"; echo "  stderr:"; tail -8 /tmp/got.err; echo "  raw tail:"; tail -8 /tmp/raw.txt; }
+if cmp -s /tmp/got.txt /root/iverilog-golden.txt; then acc 1 "vvp stdout EXACT-match golden"; else acc 0 "vvp stdout MISMATCH"; echo "  diff (golden vs got):"; diff /root/iverilog-golden.txt /tmp/got.txt | head -20; fi
+echo "IVERILOG_RESULT pass=$PASS total=$TOTAL"
+V=0; [ "$PASS" = "$TOTAL" ] && [ "$TOTAL" = "2" ] && V=1
+printf 'IVERILOG_OK=%s\n' "$V"
+echo "IVERILOG_DONE"
+'''
+success_regex = ["(?m)^IVERILOG_OK=1"]
+fail_regex = ['(?i)\bpanic(?:ked)?\b']
+timeout = 600
