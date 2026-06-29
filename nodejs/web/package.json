@@ -1,0 +1,10 @@
+{
+  "name": "node-web-carpet-deps",
+  "version": "1.0.0",
+  "description": "pug + express closure for the StarryOS node-web framework carpet",
+  "private": true,
+  "dependencies": {
+    "express": "4.21.2",
+    "pug": "3.0.3"
+  }
+}
