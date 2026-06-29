@@ -1,0 +1,13 @@
+{
+  "name": "node-lib-carpet-deps", "version": "1.0.0", "private": true,
+  "dependencies": {
+    "less": "4.2.2",
+    "stylus": "0.64.0",
+    "sass": "1.83.4",
+    "@babel/core": "7.26.0",
+    "@babel/preset-typescript": "7.26.0",
+    "@babel/preset-react": "7.26.3",
+    "terser": "5.37.0",
+    "eslint": "9.18.0"
+  }
+}
