@@ -20,15 +20,15 @@ OUT="$HERE/assets"; mkdir -p "$OUT/native"
 B="$(mktemp -d)"; trap 'rm -rf "$B"' EXIT
 
 cp "$DODJ/realdep-demo.jar" "$DODJ/jdbc-demo.jar" "$DODJ/sqlite-demo.jar" "$OUT/"
-"$JAVAC" -cp "$OUT/realdep-demo.jar" -d "$B/realdep" "$HERE/lib-carpets/JacksonCarpet.java" "$HERE/lib-carpets/GuavaCarpet.java" "$HERE/lib-carpets/Lang3Carpet.java"
+"$JAVAC" --release 17 -cp "$OUT/realdep-demo.jar" -d "$B/realdep" "$HERE/lib-carpets/JacksonCarpet.java" "$HERE/lib-carpets/GuavaCarpet.java" "$HERE/lib-carpets/Lang3Carpet.java"
 ( cd "$B/realdep" && "$JAR" uf "$OUT/realdep-demo.jar" org )
-"$JAVAC" -cp "$OUT/jdbc-demo.jar" -d "$B/jdbc" "$HERE/lib-carpets/H2Carpet.java" "$HERE/lib-carpets/LogCarpet.java"
+"$JAVAC" --release 17 -cp "$OUT/jdbc-demo.jar" -d "$B/jdbc" "$HERE/lib-carpets/H2Carpet.java" "$HERE/lib-carpets/LogCarpet.java"
 ( cd "$B/jdbc" && "$JAR" uf "$OUT/jdbc-demo.jar" org )
-"$JAVAC" -cp "$OUT/sqlite-demo.jar" -d "$B/sqlite" "$HERE/lib-carpets/SqliteJdbcCarpet.java"
+"$JAVAC" --release 17 -cp "$OUT/sqlite-demo.jar" -d "$B/sqlite" "$HERE/lib-carpets/SqliteJdbcCarpet.java"
 ( cd "$B/sqlite" && "$JAR" uf "$OUT/sqlite-demo.jar" org )
 
-"$JAVAC" -cp "$LOMBOK" -processorpath "$LOMBOK" -d "$B/suite" "$HERE/jse-suite/LombokCarpet.java"
-"$JAVAC" -d "$B/suite" "$HERE"/jse-suite/*Test.java "$HERE/jse-suite/ConcurrencyDeep.java"
+"$JAVAC" --release 17 -cp "$LOMBOK" -processorpath "$LOMBOK" -d "$B/suite" "$HERE/jse-suite/LombokCarpet.java"
+"$JAVAC" --release 17 -d "$B/suite" "$HERE"/jse-suite/*Test.java "$HERE/jse-suite/ConcurrencyDeep.java"
 ( cd "$B/suite" && "$JAR" cf "$OUT/jse-suite.jar" . )
 
 cp "$DODJ/sqlite-musl-jni/libsqlitejdbc-riscv64.so"     "$OUT/native/libsqlitejdbc-riscv64.so"
