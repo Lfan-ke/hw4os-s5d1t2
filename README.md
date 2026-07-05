@@ -9,6 +9,7 @@
 | `main` | 仓库说明 | 本 README，索引各分支用途 |
 | `osdst` | StarryOS 软件/语言/工具链交付 | 见下「osdst」 |
 | `oslab` | 自设计 RISC-V 操作系统实验课程 | 见下「oslab」 |
+| `osint` | 实习期间的软件与系统的适配与修复 | 见下「osint」 |
 
 ## osdst —— StarryOS 软件与工具链测试交付
 
