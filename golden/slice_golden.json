@@ -1,0 +1,148 @@
+{
+  "cube": {
+    "name": "cube",
+    "path": "cube.stl",
+    "n_triangles": 12,
+    "bounds": {
+      "x": [
+        0.0,
+        1.0
+      ],
+      "y": [
+        0.0,
+        1.0
+      ],
+      "z": [
+        0.0,
+        1.0
+      ]
+    },
+    "layers": [
+      {
+        "z": 0.25,
+        "n_segments": 8,
+        "perimeter": 4.0,
+        "area": 1.0
+      },
+      {
+        "z": 0.5,
+        "n_segments": 8,
+        "perimeter": 4.0,
+        "area": 1.0
+      },
+      {
+        "z": 0.75,
+        "n_segments": 8,
+        "perimeter": 4.0,
+        "area": 1.0
+      }
+    ],
+    "analytic": {
+      "expected_area": 1.0,
+      "expected_perimeter": 4.0,
+      "note": "each interior Z slice is a unit square"
+    }
+  },
+  "suzanne": {
+    "name": "suzanne",
+    "path": "suzanne.stl",
+    "n_triangles": 968,
+    "bounds": {
+      "x": [
+        -1.3671875,
+        1.3671875
+      ],
+      "y": [
+        -0.8515625,
+        0.8515625
+      ],
+      "z": [
+        -0.984375,
+        0.984375
+      ]
+    },
+    "layers": [
+      {
+        "z": -0.65625,
+        "n_segments": 24,
+        "perimeter": 1.784272,
+        "area": 0.017366
+      },
+      {
+        "z": -0.328125,
+        "n_segments": 28,
+        "perimeter": 3.022516,
+        "area": 0.09767
+      },
+      {
+        "z": 0.0,
+        "n_segments": 98,
+        "perimeter": 7.762914,
+        "area": 0.569877
+      },
+      {
+        "z": 0.328125,
+        "n_segments": 156,
+        "perimeter": 9.655346,
+        "area": 0.044602
+      },
+      {
+        "z": 0.65625,
+        "n_segments": 52,
+        "perimeter": 5.951056,
+        "area": 0.151971
+      }
+    ]
+  },
+  "benchy": {
+    "name": "benchy",
+    "path": "benchy.stl",
+    "n_triangles": 16186,
+    "bounds": {
+      "x": [
+        -30.000999450683594,
+        29.989999771118164
+      ],
+      "y": [
+        -15.501999855041504,
+        15.501999855041504
+      ],
+      "z": [
+        0.0,
+        48.0
+      ]
+    },
+    "layers": [
+      {
+        "z": 8.0,
+        "n_segments": 231,
+        "perimeter": 168.945253,
+        "area": 205.729875
+      },
+      {
+        "z": 16.0,
+        "n_segments": 409,
+        "perimeter": 196.403478,
+        "area": 33.376142
+      },
+      {
+        "z": 24.0,
+        "n_segments": 358,
+        "perimeter": 170.917877,
+        "area": 62.669466
+      },
+      {
+        "z": 32.0,
+        "n_segments": 298,
+        "perimeter": 115.799108,
+        "area": 14.136799
+      },
+      {
+        "z": 40.0,
+        "n_segments": 205,
+        "perimeter": 70.957603,
+        "area": 86.159553
+      }
+    ]
+  }
+}
