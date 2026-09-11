@@ -26,8 +26,8 @@ Images: Honkai Impact 3rd wallpapers from miHoYo official static hosts
 | rickroll.mp4    | 【官方_MV】Never_Gonna_Give_You_Up_-_Rick_Astley....137649199.mp4 | bilibili.com (id 137649199) |
 | luoqixi.mp4     | 洛琪希AI语音模型+推理平台测试,Roxy可爱捏.40059998004.mp4 | bilibili.com (id 40059998004) |
 | luoxiaohei.mp4  | 罗小黑.mp4 | bilibili.com |
-| 20260911-1945-06G.mp4 | 2026-09-11 19-45-30.mp4 | own screen recording of StarryOS x86_64 (G side, virgl) running Firefox on www.4399.com; audio track removed, video stream copied unchanged |
-| 20260911-2120-12G.mp4 | 2026-09-11 21-20-24.mp4 | own screen recording of StarryOS x86_64 (G side, virgl) playing 4399 Fireboy and Watergirl in Firefox; audio track removed, video stream copied unchanged |
+| 20260911-1945-06G-StarryOS-FireFox.mp4 | 2026-09-11 19-45-30.mp4 | own screen recording of StarryOS x86_64 (G side, virgl) running Firefox on www.4399.com; audio track removed, video stream copied unchanged |
+| 20260911-2120-12G-StarryOS-FireFox.mp4 | 2026-09-11 21-20-24.mp4 | own screen recording of StarryOS x86_64 (G side, virgl) playing 4399 Fireboy and Watergirl in Firefox; audio track removed, video stream copied unchanged |
 
 ### subtitles/ (sidecar, slugs match their video)
 | slug | original filename |
